@@ -4,16 +4,43 @@
 #include <array>
 #include "PluginProcessor.h"
 
+class MoggLookAndFeel : public juce::LookAndFeel_V4 {
+public:
+    MoggLookAndFeel();
+
+    void drawRotarySlider(juce::Graphics& g, int x, int y, int width, int height,
+                          float sliderPosProportional, float rotaryStartAngle,
+                          float rotaryEndAngle, juce::Slider& slider) override;
+
+    void drawButtonBackground(juce::Graphics& g, juce::Button& button,
+                              const juce::Colour& backgroundColour,
+                              bool shouldDrawButtonAsHighlighted,
+                              bool shouldDrawButtonAsDown) override;
+
+    void drawButtonText(juce::Graphics& g, juce::TextButton& button,
+                        bool shouldDrawButtonAsHighlighted,
+                        bool shouldDrawButtonAsDown) override;
+
+    void drawToggleButton(juce::Graphics& g, juce::ToggleButton& button,
+                          bool shouldDrawButtonAsHighlighted,
+                          bool shouldDrawButtonAsDown) override;
+
+    void drawComboBox(juce::Graphics& g, int width, int height, bool isButtonDown,
+                      int buttonX, int buttonY, int buttonW, int buttonH,
+                      juce::ComboBox& box) override;
+};
+
 class MoggDualLadderAudioProcessorEditor : public juce::AudioProcessorEditor {
 public:
     explicit MoggDualLadderAudioProcessorEditor(MoggDualLadderAudioProcessor&);
-    ~MoggDualLadderAudioProcessorEditor() override = default;
+    ~MoggDualLadderAudioProcessorEditor() override;
 
     void paint(juce::Graphics&) override;
     void resized() override;
 
 private:
     MoggDualLadderAudioProcessor& audioProcessor;
+    MoggLookAndFeel moggLookAndFeel;
 
     juce::Slider inGainSlider, outGainSlider;
     juce::Slider hpFreqSlider, hpResSlider, hpSatSlider;
@@ -47,8 +74,9 @@ private:
     std::unique_ptr<ButtonAttachment> linkAttachment;
     std::unique_ptr<juce::ParameterAttachment> slopeAttachment;
 
-    void setupRotarySlider(juce::Slider& slider, juce::Label& label, const juce::String& text, juce::Colour accent);
-    void setupSatModeBox(juce::ComboBox& box);
+    void setupRotarySlider(juce::Slider& slider, juce::Label& label, const juce::String& text,
+                           juce::Colour accent, bool dualNeon = false);
+    void setupSatModeBox(juce::ComboBox& box, juce::Colour accent);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MoggDualLadderAudioProcessorEditor)
 };
