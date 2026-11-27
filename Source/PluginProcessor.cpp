@@ -7,13 +7,15 @@ MoggDualLadderAudioProcessor::MoggDualLadderAudioProcessor()
                      .withOutput("Output", juce::AudioChannelSet::stereo(), true)),
       apvts(*this, nullptr, "PARAMETERS", createParameterLayout())
 {
-    lpFreqParam = apvts.getRawParameterValue("lpFreq");
-    hpFreqParam = apvts.getRawParameterValue("hpFreq");
-    lpResParam  = apvts.getRawParameterValue("lpRes");
-    hpResParam  = apvts.getRawParameterValue("hpRes");
-    driveParam  = apvts.getRawParameterValue("drive");
-    linkParam   = apvts.getRawParameterValue("link");
-    slopeParam  = apvts.getRawParameterValue("slope");
+    inGainParam  = apvts.getRawParameterValue("inGain");
+    outGainParam = apvts.getRawParameterValue("outGain");
+    lpFreqParam  = apvts.getRawParameterValue("lpFreq");
+    hpFreqParam  = apvts.getRawParameterValue("hpFreq");
+    lpResParam   = apvts.getRawParameterValue("lpRes");
+    hpResParam   = apvts.getRawParameterValue("hpRes");
+    driveParam   = apvts.getRawParameterValue("drive");
+    linkParam    = apvts.getRawParameterValue("link");
+    slopeParam   = apvts.getRawParameterValue("slope");
 
     apvts.addParameterListener("lpFreq", this);
     apvts.addParameterListener("hpFreq", this);
@@ -34,6 +36,13 @@ juce::AudioProcessorValueTreeState::ParameterLayout MoggDualLadderAudioProcessor
 
     auto hpFreqRange = juce::NormalisableRange<float>(10.0f, 20000.0f, 0.1f, 0.25f);
     auto lpFreqRange = juce::NormalisableRange<float>(20.0f, 30000.0f, 0.1f, 0.25f);
+    auto levelRange  = juce::NormalisableRange<float>(-10.0f, 10.0f, 0.1f);
+
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID("inGain", 1), "Input Level", levelRange, 0.0f, "dB"));
+
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID("outGain", 1), "Output Level", levelRange, 0.0f, "dB"));
 
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID("lpFreq", 1), "Lowpass Cutoff", lpFreqRange, 30000.0f, "Hz"));
@@ -126,6 +135,8 @@ void MoggDualLadderAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer
         buffer.clear(i, 0, buffer.getNumSamples());
     }
 
+    const float inGain   = inGainParam->load();
+    const float outGain  = outGainParam->load();
     const float lpFreq   = lpFreqParam->load();
     const float hpFreq   = hpFreqParam->load();
     const float lpRes    = lpResParam->load();
@@ -134,8 +145,8 @@ void MoggDualLadderAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer
     const int slopeIndex = std::clamp(static_cast<int>(std::lround(slopeParam->load())), 0, 3);
     const auto slope     = static_cast<MoggDualLadderFilter::Slope>(slopeIndex);
 
-    filterL.setParameters(lpFreq, hpFreq, lpRes, hpRes, drive, slope);
-    filterR.setParameters(lpFreq, hpFreq, lpRes, hpRes, drive, slope);
+    filterL.setParameters(lpFreq, hpFreq, lpRes, hpRes, drive, inGain, outGain, slope);
+    filterR.setParameters(lpFreq, hpFreq, lpRes, hpRes, drive, inGain, outGain, slope);
 
     juce::dsp::AudioBlock<float> block(buffer);
     auto osBlock = oversampling.processSamplesUp(block);
@@ -180,4 +191,3 @@ void MoggDualLadderAudioProcessor::setStateInformation(const void* data, int siz
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter() {
     return new MoggDualLadderAudioProcessor();
 }
-
