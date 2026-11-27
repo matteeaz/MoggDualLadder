@@ -15,6 +15,7 @@ public:
 private:
     MoggDualLadderAudioProcessor& audioProcessor;
 
+    juce::Slider inGainSlider, outGainSlider;
     juce::Slider hpFreqSlider, hpResSlider;
     juce::Slider lpFreqSlider, lpResSlider;
     juce::Slider driveSlider;
@@ -27,11 +28,13 @@ private:
         juce::TextButton("48 dB")
     };
 
+    juce::Label inGainLabel, outGainLabel;
     juce::Label hpFreqLabel, hpResLabel, lpFreqLabel, lpResLabel, driveLabel;
 
     using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
     using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
 
+    std::unique_ptr<SliderAttachment> inGainAttachment, outGainAttachment;
     std::unique_ptr<SliderAttachment> hpFreqAttachment, hpResAttachment;
     std::unique_ptr<SliderAttachment> lpFreqAttachment, lpResAttachment;
     std::unique_ptr<SliderAttachment> driveAttachment;
