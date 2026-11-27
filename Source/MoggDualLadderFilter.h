@@ -55,13 +55,9 @@ public:
         targetLpFreq = std::clamp(lpFreqHz, 10.0f, maxFreq);
         targetHpFreq = std::clamp(hpFreqHz, 10.0f, maxFreq);
 
-        // Sanftes Resonanz-Taper an den offenen Park-Anschlägen (10..12 Hz HP / 24..30 kHz LP)
-        const double hpParkTaper = std::clamp((static_cast<double>(targetHpFreq) - 10.0) / 2.0, 0.0, 1.0);
-        const double lpParkTaper = std::clamp((30000.0 - static_cast<double>(targetLpFreq)) / 6000.0, 0.0, 1.0);
-
         // Resonanz 0.0 bis 1.0 -> intern 0.0 bis 4.15 (Selbstoszillation knapp unter 4.0)
-        lpRes = static_cast<double>(std::clamp(lpResonance, 0.0f, 1.05f)) * 4.15 * resTolerance * lpParkTaper;
-        hpRes = static_cast<double>(std::clamp(hpResonance, 0.0f, 1.05f)) * 4.15 * resTolerance * hpParkTaper;
+        lpRes = static_cast<double>(std::clamp(lpResonance, 0.0f, 1.05f)) * 4.15 * resTolerance;
+        hpRes = static_cast<double>(std::clamp(hpResonance, 0.0f, 1.05f)) * 4.15 * resTolerance;
 
         // UI-Skala 1.0 bis 11.0 -> intern musikalisch skaliert auf alpha 1.0 (natürlich) bis 4.5 (+13 dB)
         const double hpNorm = (std::clamp(static_cast<double>(hpSat), 1.0, 11.0) - 1.0) / 10.0;
@@ -104,14 +100,13 @@ public:
     }
 
     float processSample(float input) {
-        smoothLpG       += smoothCoeff * (targetLpG - smoothLpG);
-        smoothHpG       += smoothCoeff * (targetHpG - smoothHpG);
-        smoothLpBypass  += smoothCoeff * (targetLpBypass - smoothLpBypass);
-        smoothHpAlpha   += smoothCoeff * (targetHpAlpha - smoothHpAlpha);
-        smoothLpAlpha   += smoothCoeff * (targetLpAlpha - smoothLpAlpha);
-        smoothDirt      += smoothCoeff * (targetDirt - smoothDirt);
-        smoothInGain    += smoothCoeff * (targetInGain - smoothInGain);
-        smoothOutGain   += smoothCoeff * (targetOutGain - smoothOutGain);
+        smoothLpG     += smoothCoeff * (targetLpG - smoothLpG);
+        smoothHpG     += smoothCoeff * (targetHpG - smoothHpG);
+        smoothHpAlpha += smoothCoeff * (targetHpAlpha - smoothHpAlpha);
+        smoothLpAlpha += smoothCoeff * (targetLpAlpha - smoothLpAlpha);
+        smoothDirt    += smoothCoeff * (targetDirt - smoothDirt);
+        smoothInGain  += smoothCoeff * (targetInGain - smoothInGain);
+        smoothOutGain += smoothCoeff * (targetOutGain - smoothOutGain);
 
         double modFactor = 1.0;
         if (smoothDirt > 1.0e-6) {
@@ -138,7 +133,7 @@ public:
 
             const double crackleSum = std::clamp(dustEnv + crackleEnv, -2.2, 2.2);
 
-            // Oktav-skalierte Cutoff-Modulation (spürbar von sanfter Textur bis starkem Vinyl-Knistern)
+            // Oktav-skalierte Cutoff-Modulation
             const double dirtCurve = smoothDirt * (0.45 + 0.55 * smoothDirt);
             const double modOctaves = std::clamp(dirtCurve * (0.75 * normNoise + 1.45 * crackleSum), -2.5, 2.5);
             modFactor = std::exp2(modOctaves);
@@ -157,17 +152,6 @@ public:
 
         // 2. Stufe: Mogg Lowpass
         double lpOut = processMoggStage(hpOut, modLpG, lpRes, smoothLpAlpha, lpSatMode, lpState, lpState2, false);
-
-        // Auf den letzten 600 Hz vor Rechtsanschlag (29.4..30.0 kHz) restliche Ultraschall-Dämpfung
-        // phasenfrei ausblenden, während die LP-Sättigung aktiv bleibt
-        if (smoothLpBypass > 1.0e-6) {
-            double openSat = hpOut;
-            if (smoothLpAlpha > 1.0001 || lpSatMode != SatMode::Ladder) {
-                double unusedDer = 1.0;
-                openSat = evalSat(hpOut, smoothLpAlpha, 1.0 / smoothLpAlpha, lpSatMode, unusedDer);
-            }
-            lpOut += smoothLpBypass * (openSat - lpOut);
-        }
 
         return static_cast<float>(lpOut * smoothOutGain);
     }
@@ -200,7 +184,6 @@ private:
 
     double targetLpG = 0.0, smoothLpG = 0.0;
     double targetHpG = 0.0, smoothHpG = 0.0;
-    double targetLpBypass = 0.0, smoothLpBypass = 0.0;
 
     double lpState[4]  = { 0.0, 0.0, 0.0, 0.0 };
     double hpState[4]  = { 0.0, 0.0, 0.0, 0.0 };
@@ -231,62 +214,26 @@ private:
 
     void updateFrequencies() {
         constexpr double pi = 3.14159265358979323846;
-        const double maxOpenFreq = sampleRate * 0.48;
+        const double maxFreq = sampleRate * 0.45;
+        const double lpHz = std::clamp(static_cast<double>(targetLpFreq) * freqTolerance, 10.0, maxFreq);
+        const double hpHz = std::clamp(static_cast<double>(targetHpFreq) * freqTolerance, 10.0, maxFreq);
 
-        // Lowpass: bis 24 kHz exakt; zwischen 24 kHz und 30 kHz sanfter Glide hoch bis zur Nyquist-Grenze
-        const double rawLp = static_cast<double>(targetLpFreq);
-        double effectiveLpHz = rawLp;
-        if (rawLp > 24000.0) {
-            const double t = std::clamp((rawLp - 24000.0) / 6000.0, 0.0, 1.0);
-            effectiveLpHz = 24000.0 + (maxOpenFreq - 24000.0) * (t * t);
-        }
-        const double lpHz = std::clamp(effectiveLpHz * freqTolerance, 10.0, maxOpenFreq);
         targetLpG = std::tan(pi * lpHz / sampleRate);
-
-        // Wenn Dirt aktiv ist, bleibt das LP-Filter für abwärts gerichtete Knackser im Signalweg
-        const double dirtBypassScale = 1.0 - std::clamp(targetDirt / 0.35, 0.0, 1.0);
-        targetLpBypass = std::clamp((rawLp - 29400.0) / 600.0, 0.0, 1.0) * dirtBypassScale;
-
-        // Highpass: ab 12 Hz exakt; zwischen 12 Hz und 10 Hz sanfter Glide hinunter auf 0 Hz
-        const double rawHp = static_cast<double>(targetHpFreq);
-        if (rawHp <= 10.001) {
-            targetHpG = 0.0;
-        } else if (rawHp < 12.0) {
-            const double t = (rawHp - 10.0) / 2.0;
-            const double effectiveHpHz = 12.0 * (t * t) * freqTolerance;
-            targetHpG = std::tan(pi * effectiveHpHz / sampleRate);
-        } else {
-            const double hpHz = std::clamp(rawHp * freqTolerance, 12.0, sampleRate * 0.45);
-            targetHpG = std::tan(pi * hpHz / sampleRate);
-        }
+        targetHpG = std::tan(pi * hpHz / sampleRate);
     }
 
     void snapSmoothing() {
-        smoothLpG      = targetLpG;
-        smoothHpG      = targetHpG;
-        smoothLpBypass = targetLpBypass;
-        smoothHpAlpha  = targetHpAlpha;
-        smoothLpAlpha  = targetLpAlpha;
-        smoothDirt     = targetDirt;
-        smoothInGain   = targetInGain;
-        smoothOutGain  = targetOutGain;
+        smoothLpG     = targetLpG;
+        smoothHpG     = targetHpG;
+        smoothHpAlpha = targetHpAlpha;
+        smoothLpAlpha = targetLpAlpha;
+        smoothDirt    = targetDirt;
+        smoothInGain  = targetInGain;
+        smoothOutGain = targetOutGain;
     }
 
     double processMoggStage(double input, double g, double k, double alpha, SatMode mode,
                             double s1[4], double s2[4], bool isHighpass) {
-        // Wenn der Highpass vollständig auf 0 Hz geparkt ist: verlustfreier Durchlass inkl. HP-Sättigung
-        if (isHighpass && g < 1.0e-7) {
-            for (int i = 0; i < 4; ++i) {
-                s1[i] = 0.0;
-                s2[i] = 0.0;
-            }
-            if (alpha > 1.0001 || mode != SatMode::Ladder) {
-                double unusedDer = 1.0;
-                return evalSat(input, alpha, 1.0 / alpha, mode, unusedDer);
-            }
-            return input;
-        }
-
         const Slope activeBlockSlope = (slope == Slope::Slope48) ? Slope::Slope24 : slope;
         double out = processSingleLadder(input, g, k, alpha, mode, s1, isHighpass, activeBlockSlope);
 
