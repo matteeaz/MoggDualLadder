@@ -4,20 +4,22 @@
 MoggDualLadderAudioProcessorEditor::MoggDualLadderAudioProcessorEditor(MoggDualLadderAudioProcessor& p)
     : AudioProcessorEditor(&p), audioProcessor(p)
 {
-    const auto mainAccent = juce::Colours::orange;
-    const auto satAccent  = juce::Colour(0xffff5a26);
+    const auto mainAccent   = juce::Colours::orange;
+    const auto satAccent    = juce::Colour(0xffff5a26);
+    const auto screamAccent = juce::Colour(0xffff2e63);
 
     setupRotarySlider(inGainSlider,  inGainLabel,  "IN LEVEL",  mainAccent);
     setupRotarySlider(hpFreqSlider,  hpFreqLabel,  "HP CUTOFF", mainAccent);
     setupRotarySlider(hpResSlider,   hpResLabel,   "HP RES",    mainAccent);
     setupRotarySlider(hpSatSlider,   hpSatLabel,   "HP SAT",    satAccent);
+    setupRotarySlider(screamSlider,  screamLabel,  "SCREAM",    screamAccent);
     setupRotarySlider(lpFreqSlider,  lpFreqLabel,  "LP CUTOFF", mainAccent);
     setupRotarySlider(lpResSlider,   lpResLabel,   "LP RES",    mainAccent);
     setupRotarySlider(lpSatSlider,   lpSatLabel,   "LP SAT",    satAccent);
     setupRotarySlider(outGainSlider, outGainLabel, "OUT LEVEL", mainAccent);
 
-    setupBoostButton(hpSat2xButton);
-    setupBoostButton(lpSat2xButton);
+    setupSatModeBox(hpSatModeBox);
+    setupSatModeBox(lpSatModeBox);
 
     linkButton.setColour(juce::ToggleButton::textColourId, mainAccent);
     linkButton.setColour(juce::ToggleButton::tickColourId, mainAccent);
@@ -58,25 +60,26 @@ MoggDualLadderAudioProcessorEditor::MoggDualLadderAudioProcessorEditor(MoggDualL
         slopeAttachment->sendInitialUpdate();
     }
 
-    inGainAttachment  = std::make_unique<SliderAttachment>(audioProcessor.apvts, "inGain",  inGainSlider);
-    hpFreqAttachment  = std::make_unique<SliderAttachment>(audioProcessor.apvts, "hpFreq",  hpFreqSlider);
-    hpResAttachment   = std::make_unique<SliderAttachment>(audioProcessor.apvts, "hpRes",   hpResSlider);
-    hpSatAttachment   = std::make_unique<SliderAttachment>(audioProcessor.apvts, "hpSat",   hpSatSlider);
-    hpSat2xAttachment = std::make_unique<ButtonAttachment>(audioProcessor.apvts, "hpSat2x", hpSat2xButton);
-    lpFreqAttachment  = std::make_unique<SliderAttachment>(audioProcessor.apvts, "lpFreq",  lpFreqSlider);
-    lpResAttachment   = std::make_unique<SliderAttachment>(audioProcessor.apvts, "lpRes",   lpResSlider);
-    lpSatAttachment   = std::make_unique<SliderAttachment>(audioProcessor.apvts, "lpSat",   lpSatSlider);
-    lpSat2xAttachment = std::make_unique<ButtonAttachment>(audioProcessor.apvts, "lpSat2x", lpSat2xButton);
-    outGainAttachment = std::make_unique<SliderAttachment>(audioProcessor.apvts, "outGain", outGainSlider);
-    linkAttachment    = std::make_unique<ButtonAttachment>(audioProcessor.apvts, "link",    linkButton);
+    inGainAttachment    = std::make_unique<SliderAttachment>(audioProcessor.apvts, "inGain",    inGainSlider);
+    hpFreqAttachment    = std::make_unique<SliderAttachment>(audioProcessor.apvts, "hpFreq",    hpFreqSlider);
+    hpResAttachment     = std::make_unique<SliderAttachment>(audioProcessor.apvts, "hpRes",     hpResSlider);
+    hpSatAttachment     = std::make_unique<SliderAttachment>(audioProcessor.apvts, "hpSat",     hpSatSlider);
+    hpSatModeAttachment = std::make_unique<ComboBoxAttachment>(audioProcessor.apvts, "hpSatMode", hpSatModeBox);
+    screamAttachment    = std::make_unique<SliderAttachment>(audioProcessor.apvts, "scream",    screamSlider);
+    lpFreqAttachment    = std::make_unique<SliderAttachment>(audioProcessor.apvts, "lpFreq",    lpFreqSlider);
+    lpResAttachment     = std::make_unique<SliderAttachment>(audioProcessor.apvts, "lpRes",     lpResSlider);
+    lpSatAttachment     = std::make_unique<SliderAttachment>(audioProcessor.apvts, "lpSat",     lpSatSlider);
+    lpSatModeAttachment = std::make_unique<ComboBoxAttachment>(audioProcessor.apvts, "lpSatMode", lpSatModeBox);
+    outGainAttachment   = std::make_unique<SliderAttachment>(audioProcessor.apvts, "outGain",   outGainSlider);
+    linkAttachment      = std::make_unique<ButtonAttachment>(audioProcessor.apvts, "link",      linkButton);
 
-    setSize(940, 285);
+    setSize(1020, 290);
 }
 
 void MoggDualLadderAudioProcessorEditor::setupRotarySlider(juce::Slider& slider, juce::Label& label,
                                                            const juce::String& text, juce::Colour accent) {
     slider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
-    slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 84, 20);
+    slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 82, 20);
     slider.setColour(juce::Slider::rotarySliderFillColourId, accent);
     slider.setColour(juce::Slider::thumbColourId, juce::Colours::white);
     addAndMakeVisible(slider);
@@ -88,13 +91,17 @@ void MoggDualLadderAudioProcessorEditor::setupRotarySlider(juce::Slider& slider,
     addAndMakeVisible(label);
 }
 
-void MoggDualLadderAudioProcessorEditor::setupBoostButton(juce::TextButton& button) {
-    button.setClickingTogglesState(true);
-    button.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff18191c));
-    button.setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xffff5a26));
-    button.setColour(juce::TextButton::textColourOffId, juce::Colours::lightgrey);
-    button.setColour(juce::TextButton::textColourOnId, juce::Colours::white);
-    addAndMakeVisible(button);
+void MoggDualLadderAudioProcessorEditor::setupSatModeBox(juce::ComboBox& box) {
+    box.addItem("LADDER", 1);
+    box.addItem("WARM",   2);
+    box.addItem("FOLD",   3);
+    box.addItem("GRIT",   4);
+    box.setJustificationType(juce::Justification::centred);
+    box.setColour(juce::ComboBox::backgroundColourId, juce::Colour(0xff18191c));
+    box.setColour(juce::ComboBox::textColourId, juce::Colours::white);
+    box.setColour(juce::ComboBox::outlineColourId, juce::Colour(0xff3a3e47));
+    box.setColour(juce::ComboBox::arrowColourId, juce::Colour(0xffff5a26));
+    addAndMakeVisible(box);
 }
 
 void MoggDualLadderAudioProcessorEditor::paint(juce::Graphics& g) {
@@ -107,15 +114,17 @@ void MoggDualLadderAudioProcessorEditor::paint(juce::Graphics& g) {
     g.setFont(juce::FontOptions(18.0f, juce::Font::bold));
     g.drawText("MOGG DUAL LADDER", 24, 20, 240, 26, juce::Justification::left);
 
+    // Trennlinien: IN | HP-Sektion (3) | SCREAM (1) | LP-Sektion (3) | OUT
     auto inner = getLocalBounds().reduced(24);
-    const int colWidth = inner.getWidth() / 8;
+    const int colWidth = inner.getWidth() / 9;
     const float topY = static_cast<float>(inner.getY() + 42);
     const float botY = static_cast<float>(inner.getBottom() - 6);
 
     g.setColour(juce::Colour(0xff353840));
     g.drawLine(static_cast<float>(inner.getX() + colWidth),     topY, static_cast<float>(inner.getX() + colWidth),     botY, 1.0f);
     g.drawLine(static_cast<float>(inner.getX() + colWidth * 4), topY, static_cast<float>(inner.getX() + colWidth * 4), botY, 1.0f);
-    g.drawLine(static_cast<float>(inner.getX() + colWidth * 7), topY, static_cast<float>(inner.getX() + colWidth * 7), botY, 1.0f);
+    g.drawLine(static_cast<float>(inner.getX() + colWidth * 5), topY, static_cast<float>(inner.getX() + colWidth * 5), botY, 1.0f);
+    g.drawLine(static_cast<float>(inner.getX() + colWidth * 8), topY, static_cast<float>(inner.getX() + colWidth * 8), botY, 1.0f);
 }
 
 void MoggDualLadderAudioProcessorEditor::resized() {
@@ -138,15 +147,15 @@ void MoggDualLadderAudioProcessorEditor::resized() {
     }
 
     area.removeFromTop(12);
-    const int colWidth = area.getWidth() / 8;
+    const int colWidth = area.getWidth() / 9;
 
-    auto placeControl = [&](juce::Slider& s, juce::Label& l, juce::TextButton* boostBtn = nullptr) {
-        auto col = area.removeFromLeft(colWidth).reduced(5);
+    auto placeControl = [&](juce::Slider& s, juce::Label& l, juce::ComboBox* modeBox = nullptr) {
+        auto col = area.removeFromLeft(colWidth).reduced(4);
         l.setBounds(col.removeFromTop(20));
 
-        auto bottomSlot = col.removeFromBottom(24);
-        if (boostBtn != nullptr) {
-            boostBtn->setBounds(bottomSlot.withSizeKeepingCentre(62, 20));
+        auto modeSlot = col.removeFromBottom(26);
+        if (modeBox != nullptr) {
+            modeBox->setBounds(modeSlot.withSizeKeepingCentre(88, 22));
         }
 
         s.setBounds(col);
@@ -155,9 +164,10 @@ void MoggDualLadderAudioProcessorEditor::resized() {
     placeControl(inGainSlider,  inGainLabel);
     placeControl(hpFreqSlider,  hpFreqLabel);
     placeControl(hpResSlider,   hpResLabel);
-    placeControl(hpSatSlider,   hpSatLabel, &hpSat2xButton);
+    placeControl(hpSatSlider,   hpSatLabel, &hpSatModeBox);
+    placeControl(screamSlider,  screamLabel);
     placeControl(lpFreqSlider,  lpFreqLabel);
     placeControl(lpResSlider,   lpResLabel);
-    placeControl(lpSatSlider,   lpSatLabel, &lpSat2xButton);
+    placeControl(lpSatSlider,   lpSatLabel, &lpSatModeBox);
     placeControl(outGainSlider, outGainLabel);
 }
