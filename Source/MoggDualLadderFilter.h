@@ -24,8 +24,15 @@ public:
         constexpr double pi = 3.14159265358979323846;
         sampleRate = std::max(sr, 8000.0);
         smoothCoeff = 1.0 - std::exp(-1.0 / (0.005 * sampleRate));
-        noiseAlpha = 1.0 - std::exp(-2.0 * pi * 350.0 / sampleRate);
-        crackleDecayCoeff = std::exp(-1.0 / (0.0012 * sampleRate));
+
+        // Bandbegrenztes Analog-Noise (~950 Hz) inkl. RMS-Normierung für 4x Oversampling
+        noiseAlpha = 1.0 - std::exp(-2.0 * pi * 950.0 / sampleRate);
+        noiseNorm  = 1.0 / std::sqrt(std::max(noiseAlpha / 6.0, 1.0e-6));
+
+        // Abklingzeiten für feinen Vinyl-Staub (0.6 ms) und kräftigere Pops (2.2 ms)
+        dustDecayCoeff    = std::exp(-1.0 / (0.0006 * sampleRate));
+        crackleDecayCoeff = std::exp(-1.0 / (0.0022 * sampleRate));
+
         updateFrequencies();
         snapSmoothing();
     }
@@ -91,6 +98,7 @@ public:
             hpState2[i] = 0.0;
         }
         noiseLpState = 0.0;
+        dustEnv = 0.0;
         crackleEnv = 0.0;
         snapSmoothing();
     }
@@ -107,35 +115,48 @@ public:
 
         double modFactor = 1.0;
         if (smoothDirt > 1.0e-6) {
-            // 1. Gefiltertes analoges Noise (nicht direkt hörbar)
+            // 1. RMS-normiertes analoges Band-Noise (nicht direkt hörbar)
             const double white = nextBipolarRandom();
             noiseLpState += noiseAlpha * (white - noiseLpState);
+            const double normNoise = std::clamp(noiseLpState * noiseNorm, -2.5, 2.5);
 
-            // 2. Vinyl-Knackser / Staubimpulse
-            const double trig = nextUnipolarRandom();
-            if (trig < (32.0 / sampleRate)) {
+            // 2a. Feiner Vinyl-Oberflächenstaub (~160 Impulse/s)
+            if (nextUnipolarRandom() < (160.0 / sampleRate)) {
                 const double r = nextUnipolarRandom();
                 const double sign = (nextBipolarRandom() >= 0.0) ? 1.0 : -1.0;
-                const double mag = 0.25 + 0.75 * (r * r * r);
-                crackleEnv += sign * mag;
+                dustEnv += sign * (0.15 + 0.35 * r * r);
+            }
+            dustEnv *= dustDecayCoeff;
+
+            // 2b. Kräftigere Vinyl-Knackser & Pops (~24 Impulse/s)
+            if (nextUnipolarRandom() < (24.0 / sampleRate)) {
+                const double r = nextUnipolarRandom();
+                const double sign = (nextBipolarRandom() >= 0.0) ? 1.0 : -1.0;
+                crackleEnv += sign * (0.45 + 0.55 * r * r);
             }
             crackleEnv *= crackleDecayCoeff;
 
-            // Leichte Frequenzmodulation von HP & LP
-            const double modOffset = smoothDirt * (0.14 * noiseLpState + 0.16 * crackleEnv);
-            modFactor = 1.0 + std::clamp(modOffset, -0.35, 0.35);
+            const double crackleSum = std::clamp(dustEnv + crackleEnv, -2.2, 2.2);
+
+            // Oktav-skalierte Cutoff-Modulation (spürbar von sanfter Textur bis starkem Vinyl-Knistern)
+            const double dirtCurve = smoothDirt * (0.45 + 0.55 * smoothDirt);
+            const double modOctaves = std::clamp(dirtCurve * (0.75 * normNoise + 1.45 * crackleSum), -2.5, 2.5);
+            modFactor = std::exp2(modOctaves);
         } else {
             noiseLpState = 0.0;
+            dustEnv = 0.0;
             crackleEnv = 0.0;
         }
 
         const double scaledIn = static_cast<double>(input) * smoothInGain;
+        const double modHpG   = std::min(smoothHpG * modFactor, 12.0);
+        const double modLpG   = std::min(smoothLpG * modFactor, 12.0);
 
         // 1. Stufe: Mogg Highpass
-        double hpOut = processMoggStage(scaledIn, smoothHpG * modFactor, hpRes, smoothHpAlpha, hpSatMode, hpState, hpState2, true);
+        double hpOut = processMoggStage(scaledIn, modHpG, hpRes, smoothHpAlpha, hpSatMode, hpState, hpState2, true);
 
         // 2. Stufe: Mogg Lowpass
-        double lpOut = processMoggStage(hpOut, smoothLpG * modFactor, lpRes, smoothLpAlpha, lpSatMode, lpState, lpState2, false);
+        double lpOut = processMoggStage(hpOut, modLpG, lpRes, smoothLpAlpha, lpSatMode, lpState, lpState2, false);
 
         // Auf den letzten 600 Hz vor Rechtsanschlag (29.4..30.0 kHz) restliche Ultraschall-Dämpfung
         // phasenfrei ausblenden, während die LP-Sättigung aktiv bleibt
@@ -154,8 +175,10 @@ public:
 private:
     double sampleRate = 44100.0;
     double smoothCoeff = 0.01;
-    double noiseAlpha = 0.01;
-    double crackleDecayCoeff = 0.99;
+    double noiseAlpha = 0.03;
+    double noiseNorm = 13.0;
+    double dustDecayCoeff = 0.98;
+    double crackleDecayCoeff = 0.995;
 
     double freqTolerance = 1.0;
     double resTolerance = 1.0;
@@ -186,6 +209,7 @@ private:
 
     uint32_t rngState = 0x12345678u;
     double noiseLpState = 0.0;
+    double dustEnv = 0.0;
     double crackleEnv = 0.0;
 
     inline uint32_t nextUInt32() {
@@ -218,7 +242,10 @@ private:
         }
         const double lpHz = std::clamp(effectiveLpHz * freqTolerance, 10.0, maxOpenFreq);
         targetLpG = std::tan(pi * lpHz / sampleRate);
-        targetLpBypass = std::clamp((rawLp - 29400.0) / 600.0, 0.0, 1.0);
+
+        // Wenn Dirt aktiv ist, bleibt das LP-Filter für abwärts gerichtete Knackser im Signalweg
+        const double dirtBypassScale = 1.0 - std::clamp(targetDirt / 0.35, 0.0, 1.0);
+        targetLpBypass = std::clamp((rawLp - 29400.0) / 600.0, 0.0, 1.0) * dirtBypassScale;
 
         // Highpass: ab 12 Hz exakt; zwischen 12 Hz und 10 Hz sanfter Glide hinunter auf 0 Hz
         const double rawHp = static_cast<double>(targetHpFreq);
