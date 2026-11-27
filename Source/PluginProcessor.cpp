@@ -7,14 +7,18 @@ MoggDualLadderAudioProcessor::MoggDualLadderAudioProcessor()
                      .withOutput("Output", juce::AudioChannelSet::stereo(), true)),
       apvts(*this, nullptr, "PARAMETERS", createParameterLayout())
 {
-    inGainParam  = apvts.getRawParameterValue("inGain");
-    outGainParam = apvts.getRawParameterValue("outGain");
-    lpFreqParam  = apvts.getRawParameterValue("lpFreq");
-    hpFreqParam  = apvts.getRawParameterValue("hpFreq");
-    lpResParam   = apvts.getRawParameterValue("lpRes");
-    hpResParam   = apvts.getRawParameterValue("hpRes");
-    linkParam    = apvts.getRawParameterValue("link");
-    slopeParam   = apvts.getRawParameterValue("slope");
+    inGainParam   = apvts.getRawParameterValue("inGain");
+    outGainParam  = apvts.getRawParameterValue("outGain");
+    lpFreqParam   = apvts.getRawParameterValue("lpFreq");
+    hpFreqParam   = apvts.getRawParameterValue("hpFreq");
+    lpResParam    = apvts.getRawParameterValue("lpRes");
+    hpResParam    = apvts.getRawParameterValue("hpRes");
+    hpSatParam    = apvts.getRawParameterValue("hpSat");
+    hpSat2xParam  = apvts.getRawParameterValue("hpSat2x");
+    lpSatParam    = apvts.getRawParameterValue("lpSat");
+    lpSat2xParam  = apvts.getRawParameterValue("lpSat2x");
+    linkParam     = apvts.getRawParameterValue("link");
+    slopeParam    = apvts.getRawParameterValue("slope");
 
     apvts.addParameterListener("lpFreq", this);
     apvts.addParameterListener("hpFreq", this);
@@ -36,26 +40,42 @@ juce::AudioProcessorValueTreeState::ParameterLayout MoggDualLadderAudioProcessor
     auto hpFreqRange = juce::NormalisableRange<float>(10.0f, 20000.0f, 0.1f, 0.25f);
     auto lpFreqRange = juce::NormalisableRange<float>(20.0f, 30000.0f, 0.1f, 0.25f);
     auto levelRange  = juce::NormalisableRange<float>(-10.0f, 10.0f, 0.1f);
+    auto resRange    = juce::NormalisableRange<float>(0.0f, 1.0f, 0.001f);
+    auto satRange    = juce::NormalisableRange<float>(1.0f, 11.0f, 0.1f, 0.65f);
 
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID("inGain", 1), "Input Level", levelRange, 0.0f, "dB"));
+        juce::ParameterID("inGain", 1), "Input Level", levelRange, 0.0f,
+        juce::AudioParameterFloatAttributes().withLabel("dB")));
 
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID("outGain", 1), "Output Level", levelRange, 0.0f, "dB"));
+        juce::ParameterID("outGain", 1), "Output Level", levelRange, 0.0f,
+        juce::AudioParameterFloatAttributes().withLabel("dB")));
 
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID("lpFreq", 1), "Lowpass Cutoff", lpFreqRange, 30000.0f, "Hz"));
+        juce::ParameterID("lpFreq", 1), "Lowpass Cutoff", lpFreqRange, 30000.0f,
+        juce::AudioParameterFloatAttributes().withLabel("Hz")));
 
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID("hpFreq", 1), "Highpass Cutoff", hpFreqRange, 10.0f, "Hz"));
+        juce::ParameterID("hpFreq", 1), "Highpass Cutoff", hpFreqRange, 10.0f,
+        juce::AudioParameterFloatAttributes().withLabel("Hz")));
 
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID("lpRes", 1), "Lowpass Resonance",
-        juce::NormalisableRange<float>(0.0f, 1.0f, 0.001f), 0.0f));
+        juce::ParameterID("lpRes", 1), "Lowpass Resonance", resRange, 0.0f));
 
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID("hpRes", 1), "Highpass Resonance",
-        juce::NormalisableRange<float>(0.0f, 1.0f, 0.001f), 0.0f));
+        juce::ParameterID("hpRes", 1), "Highpass Resonance", resRange, 0.0f));
+
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID("hpSat", 1), "Highpass Saturation", satRange, 1.0f));
+
+    params.push_back(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID("hpSat2x", 1), "Highpass Saturation To 22", false));
+
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID("lpSat", 1), "Lowpass Saturation", satRange, 1.0f));
+
+    params.push_back(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID("lpSat2x", 1), "Lowpass Saturation To 22", false));
 
     params.push_back(std::make_unique<juce::AudioParameterBool>(
         juce::ParameterID("link", 1), "Link Frequencies", false));
@@ -88,8 +108,8 @@ void MoggDualLadderAudioProcessor::parameterChanged(const juce::String& paramete
     constexpr float maxHpLimit = 20000.0f;
     constexpr float minLpLimit = 20.0f;
     constexpr float maxLpLimit = 30000.0f;
-    constexpr float minRatio   = minHpLimit / maxLpLimit; // 10 / 30000
-    constexpr float maxRatio   = maxHpLimit / minLpLimit; // 20000 / 20
+    constexpr float minRatio   = minHpLimit / maxLpLimit;
+    constexpr float maxRatio   = maxHpLimit / minLpLimit;
 
     const float currentLp = lpFreqParam->load();
     const float currentHp = hpFreqParam->load();
@@ -107,7 +127,6 @@ void MoggDualLadderAudioProcessor::parameterChanged(const juce::String& paramete
         if (lpParam != nullptr && hpParam != nullptr) {
             const float ratio = std::clamp(linkedFreqRatio.load(), minRatio, maxRatio);
 
-            // Erlaubter LP-Bereich, innerhalb dessen HP weder unter 10 Hz noch über 20 kHz gerät
             const float coupledMinLp = std::max(minLpLimit, minHpLimit / ratio);
             const float coupledMaxLp = std::max(coupledMinLp, std::min(maxLpLimit, maxHpLimit / ratio));
 
@@ -130,7 +149,6 @@ void MoggDualLadderAudioProcessor::parameterChanged(const juce::String& paramete
         if (lpParam != nullptr && hpParam != nullptr) {
             const float ratio = std::clamp(linkedFreqRatio.load(), minRatio, maxRatio);
 
-            // Erlaubter HP-Bereich, innerhalb dessen LP weder unter 20 Hz noch über 30 kHz gerät
             const float coupledMinHp = std::max(minHpLimit, minLpLimit * ratio);
             const float coupledMaxHp = std::max(coupledMinHp, std::min(maxHpLimit, maxLpLimit * ratio));
 
@@ -183,17 +201,21 @@ void MoggDualLadderAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer
         buffer.clear(i, 0, buffer.getNumSamples());
     }
 
-    const float inGain   = inGainParam->load();
-    const float outGain  = outGainParam->load();
-    const float lpFreq   = lpFreqParam->load();
-    const float hpFreq   = hpFreqParam->load();
-    const float lpRes    = lpResParam->load();
-    const float hpRes    = hpResParam->load();
-    const int slopeIndex = std::clamp(static_cast<int>(std::lround(slopeParam->load())), 0, 3);
-    const auto slope     = static_cast<MoggDualLadderFilter::Slope>(slopeIndex);
+    const float inGain     = inGainParam->load();
+    const float outGain    = outGainParam->load();
+    const float lpFreq     = lpFreqParam->load();
+    const float hpFreq     = hpFreqParam->load();
+    const float lpRes      = lpResParam->load();
+    const float hpRes      = hpResParam->load();
+    const float hpSat      = hpSatParam->load();
+    const bool  hpSatTo22  = hpSat2xParam->load() > 0.5f;
+    const float lpSat      = lpSatParam->load();
+    const bool  lpSatTo22  = lpSat2xParam->load() > 0.5f;
+    const int slopeIndex   = std::clamp(static_cast<int>(std::lround(slopeParam->load())), 0, 3);
+    const auto slope       = static_cast<MoggDualLadderFilter::Slope>(slopeIndex);
 
-    filterL.setParameters(lpFreq, hpFreq, lpRes, hpRes, inGain, outGain, slope);
-    filterR.setParameters(lpFreq, hpFreq, lpRes, hpRes, inGain, outGain, slope);
+    filterL.setParameters(lpFreq, hpFreq, lpRes, hpRes, hpSat, hpSatTo22, lpSat, lpSatTo22, inGain, outGain, slope);
+    filterR.setParameters(lpFreq, hpFreq, lpRes, hpRes, hpSat, hpSatTo22, lpSat, lpSatTo22, inGain, outGain, slope);
 
     juce::dsp::AudioBlock<float> block(buffer);
     auto osBlock = oversampling.processSamplesUp(block);
