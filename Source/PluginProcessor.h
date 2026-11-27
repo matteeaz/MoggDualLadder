@@ -49,17 +49,18 @@ private:
         2, 2, juce::dsp::Oversampling<float>::filterHalfBandPolyphaseIIR, true
     };
 
-    std::atomic<float>* lpFreqParam = nullptr;
-    std::atomic<float>* hpFreqParam = nullptr;
-    std::atomic<float>* lpResParam  = nullptr;
-    std::atomic<float>* hpResParam  = nullptr;
-    std::atomic<float>* driveParam  = nullptr;
-    std::atomic<float>* linkParam   = nullptr;
-    std::atomic<float>* slopeParam  = nullptr;
+    std::atomic<float>* inGainParam  = nullptr;
+    std::atomic<float>* outGainParam = nullptr;
+    std::atomic<float>* lpFreqParam  = nullptr;
+    std::atomic<float>* hpFreqParam  = nullptr;
+    std::atomic<float>* lpResParam   = nullptr;
+    std::atomic<float>* hpResParam   = nullptr;
+    std::atomic<float>* driveParam   = nullptr;
+    std::atomic<float>* linkParam    = nullptr;
+    std::atomic<float>* slopeParam   = nullptr;
 
     std::atomic<float> linkedFreqRatio { 0.05f };
     std::atomic<bool> isUpdatingLink { false };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MoggDualLadderAudioProcessor)
 };
-
