@@ -1,8 +1,6 @@
 name: Build VST3 & AU Plugin
 
 on:
-  push:
-    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
@@ -28,4 +26,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: MoggDualLadder-${{ matrix.os }}
-          path: build/MoggDualLadder_artefacts/Release
+          path: |
+            build/MoggDualLadder_artefacts/Release/VST3
+            build/MoggDualLadder_artefacts/Release/AU
