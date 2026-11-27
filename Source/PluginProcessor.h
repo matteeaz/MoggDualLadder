@@ -55,7 +55,6 @@ private:
     std::atomic<float>* hpFreqParam  = nullptr;
     std::atomic<float>* lpResParam   = nullptr;
     std::atomic<float>* hpResParam   = nullptr;
-    std::atomic<float>* driveParam   = nullptr;
     std::atomic<float>* linkParam    = nullptr;
     std::atomic<float>* slopeParam   = nullptr;
 
