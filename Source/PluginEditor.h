@@ -42,8 +42,6 @@ private:
     MoggDualLadderAudioProcessor& audioProcessor;
     MoggLookAndFeel moggLookAndFeel;
 
-    juce::Image brushedAluminumCache;
-
     juce::Slider inGainSlider, outGainSlider;
     juce::Slider hpFreqSlider, hpResSlider, hpSatSlider;
     juce::Slider dirtSlider;
@@ -76,9 +74,8 @@ private:
     std::unique_ptr<ButtonAttachment> linkAttachment;
     std::unique_ptr<juce::ParameterAttachment> slopeAttachment;
 
-    void rebuildBrushedMetalTexture();
     void setupRotarySlider(juce::Slider& slider, juce::Label& label, const juce::String& text,
-                           juce::Colour accent, int knobStyle);
+                           juce::Colour accent, bool dualNeon = false);
     void setupSatModeBox(juce::ComboBox& box, juce::Colour accent);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MoggDualLadderAudioProcessorEditor)
