@@ -60,6 +60,7 @@ private:
 
     std::atomic<float> linkedFreqRatio { 0.05f };
     std::atomic<bool> isUpdatingLink { false };
+    std::atomic<bool> isRestoringState { false };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MoggDualLadderAudioProcessor)
 };
