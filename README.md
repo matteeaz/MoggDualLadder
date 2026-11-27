@@ -5,14 +5,13 @@ A modernized take on a dual ladder-filter-circuit.
 
 Plugin won't open until you remove the qurantine flag.
 
-(!!) Type in to Terminal:
+(!!) Type the next 4 lines in to Terminal:
 
-  sudo xattr -cr "/Library/Audio/Plug-Ins/VST3/Mogg Dual Ladder.vst3"
-  sudo codesign --force --deep --sign - "/Library/Audio/Plug-Ins/VST3/Mogg Dual Ladder.vst3"
+sudo xattr -cr "/Library/Audio/Plug-Ins/Components/Mogg Dual Ladder.component"
+sudo codesign --force --deep --sign - "/Library/Audio/Plug-Ins/Components/Mogg Dual Ladder.component"
+sudo xattr -cr "/Library/Audio/Plug-Ins/VST3/Mogg Dual Ladder.vst3"
+sudo codesign --force --deep --sign - "/Library/Audio/Plug-Ins/VST3/Mogg Dual Ladder.vst3"
 
-confirm with password, and
-
-  sudo xattr -cr "/Library/Audio/Plug-Ins/Components/Mogg Dual Ladder.component"
-  sudo codesign --force --deep --sign - "/Library/Audio/Plug-Ins/Components/Mogg Dual Ladder.component"
+Confirm with password.
 
 Have fun! ^^
