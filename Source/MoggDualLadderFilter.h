@@ -27,6 +27,8 @@ public:
 
     void setParameters(float lpFreqHz, float hpFreqHz,
                        float lpResonance, float hpResonance,
+                       float hpSat, bool hpSatTo22,
+                       float lpSat, bool lpSatTo22,
                        float inGainDb, float outGainDb,
                        Slope newSlope) {
         const float maxFreq = static_cast<float>(sampleRate * 0.45);
@@ -36,6 +38,13 @@ public:
         // Resonanz 0.0 bis 1.0 -> intern 0.0 bis 4.15 (Selbstoszillation knapp unter 4.0)
         lpRes = static_cast<double>(std::clamp(lpResonance, 0.0f, 1.05f)) * 4.15 * resTolerance;
         hpRes = static_cast<double>(std::clamp(hpResonance, 0.0f, 1.05f)) * 4.15 * resTolerance;
+
+        // Sättigung: 1.0 = natürliche Transistor-Ladder-Sättigung, max. 11.0 (mit TO 22 bis 22.0)
+        const double hpBaseAlpha = std::clamp(static_cast<double>(hpSat), 1.0, 11.0);
+        const double lpBaseAlpha = std::clamp(static_cast<double>(lpSat), 1.0, 11.0);
+
+        targetHpAlpha = hpSatTo22 ? (hpBaseAlpha * 2.0) : hpBaseAlpha;
+        targetLpAlpha = lpSatTo22 ? (lpBaseAlpha * 2.0) : lpBaseAlpha;
 
         targetInGain  = std::pow(10.0, static_cast<double>(std::clamp(inGainDb, -10.0f, 10.0f)) / 20.0);
         targetOutGain = std::pow(10.0, static_cast<double>(std::clamp(outGainDb, -10.0f, 10.0f)) / 20.0);
@@ -64,16 +73,18 @@ public:
     float processSample(float input) {
         smoothLpG     += smoothCoeff * (targetLpG - smoothLpG);
         smoothHpG     += smoothCoeff * (targetHpG - smoothHpG);
+        smoothHpAlpha += smoothCoeff * (targetHpAlpha - smoothHpAlpha);
+        smoothLpAlpha += smoothCoeff * (targetLpAlpha - smoothLpAlpha);
         smoothInGain  += smoothCoeff * (targetInGain - smoothInGain);
         smoothOutGain += smoothCoeff * (targetOutGain - smoothOutGain);
 
         const double scaledIn = static_cast<double>(input) * smoothInGain;
 
-        // 1. Stufe: Mogg Highpass
-        double hpOut = processMoggStage(scaledIn, smoothHpG, hpRes, hpState, hpState2, true);
+        // 1. Stufe: Mogg Highpass mit eigener Sättigung
+        double hpOut = processMoggStage(scaledIn, smoothHpG, hpRes, smoothHpAlpha, hpState, hpState2, true);
 
-        // 2. Stufe: Mogg Lowpass
-        double lpOut = processMoggStage(hpOut, smoothLpG, lpRes, lpState, lpState2, false);
+        // 2. Stufe: Mogg Lowpass mit eigener Sättigung
+        double lpOut = processMoggStage(hpOut, smoothLpG, lpRes, smoothLpAlpha, lpState, lpState2, false);
 
         return static_cast<float>(lpOut * smoothOutGain);
     }
@@ -90,6 +101,8 @@ private:
 
     double lpRes = 0.0;
     double hpRes = 0.0;
+    double targetHpAlpha = 1.0, smoothHpAlpha = 1.0;
+    double targetLpAlpha = 1.0, smoothLpAlpha = 1.0;
     double targetInGain = 1.0, smoothInGain = 1.0;
     double targetOutGain = 1.0, smoothOutGain = 1.0;
     Slope slope = Slope::Slope24;
@@ -115,47 +128,58 @@ private:
     void snapSmoothing() {
         smoothLpG     = targetLpG;
         smoothHpG     = targetHpG;
+        smoothHpAlpha = targetHpAlpha;
+        smoothLpAlpha = targetLpAlpha;
         smoothInGain  = targetInGain;
         smoothOutGain = targetOutGain;
     }
 
-    double processMoggStage(double input, double g, double k,
+    double processMoggStage(double input, double g, double k, double alpha,
                             double s1[4], double s2[4], bool isHighpass) {
         const Slope activeBlockSlope = (slope == Slope::Slope48) ? Slope::Slope24 : slope;
-        double out = processSingleLadder(input, g, k, s1, isHighpass, activeBlockSlope);
+        double out = processSingleLadder(input, g, k, alpha, s1, isHighpass, activeBlockSlope);
 
         if (slope == Slope::Slope48) {
             const double k2 = std::min(k * 0.35, 1.4);
-            out = processSingleLadder(out, g, k2, s2, isHighpass, Slope::Slope24);
+            const double alpha2 = 1.0 + (alpha - 1.0) * 0.35;
+            out = processSingleLadder(out, g, k2, alpha2, s2, isHighpass, Slope::Slope24);
         }
 
         return out;
     }
 
-    // Physikalisches 4-Pol Moog Ladder Modell mit exaktem Unity-Gain im Durchlassbereich
-    double processSingleLadder(double input, double g, double k,
+    // Physikalisches 4-Pol Moog Ladder Modell mit skalierbarer Sättigung (1..22) und 0 dB Passband-Gain
+    double processSingleLadder(double input, double g, double k, double alpha,
                                double s[4], bool isHighpass, Slope tapSlope) {
-        // Startwerte aus den Integrator-Zuständen
+        constexpr double resPassbandComp = 0.65;
+        const double compInput = isHighpass ? input : input * (1.0 + resPassbandComp * k);
+        const double invAlpha  = 1.0 / alpha;
+
         double x1 = s[0];
         double x2 = s[1];
         double x3 = s[2];
         double x4 = s[3];
 
-        // Geschlossener 4x4 Newton-Raphson-Solver für die Trapezoidal-Integration:
-        // x_n - s_n = g * (tanh(x_{n-1}) - tanh(x_n))
-        for (int iter = 0; iter < 3; ++iter) {
-            const double tx4 = fastTanh(x4);
-            const double x0  = input - k * tx4;
+        // Geschlossener 4x4 Newton-Raphson-Solver (5 Iterationen für volle Stabilität bis Alpha = 22)
+        for (int iter = 0; iter < 5; ++iter) {
+            const double tx4 = fastTanh(alpha * x4);
+            const double sx4 = tx4 * invAlpha;
+            const double x0  = compInput - k * sx4;
 
-            const double tx0 = fastTanh(x0);
-            const double tx1 = fastTanh(x1);
-            const double tx2 = fastTanh(x2);
-            const double tx3 = fastTanh(x3);
+            const double tx0 = fastTanh(alpha * x0);
+            const double tx1 = fastTanh(alpha * x1);
+            const double tx2 = fastTanh(alpha * x2);
+            const double tx3 = fastTanh(alpha * x3);
 
-            const double f1 = x1 - s[0] - g * (tx0 - tx1);
-            const double f2 = x2 - s[1] - g * (tx1 - tx2);
-            const double f3 = x3 - s[2] - g * (tx2 - tx3);
-            const double f4 = x4 - s[3] - g * (tx3 - tx4);
+            const double sx0 = tx0 * invAlpha;
+            const double sx1 = tx1 * invAlpha;
+            const double sx2 = tx2 * invAlpha;
+            const double sx3 = tx3 * invAlpha;
+
+            const double f1 = x1 - s[0] - g * (sx0 - sx1);
+            const double f2 = x2 - s[1] - g * (sx1 - sx2);
+            const double f3 = x3 - s[2] - g * (sx2 - sx3);
+            const double f4 = x4 - s[3] - g * (sx3 - sx4);
 
             const double d0 = 1.0 - tx0 * tx0;
             const double d1 = 1.0 - tx1 * tx1;
@@ -193,7 +217,6 @@ private:
             x4 += dx4;
         }
 
-        // Trapezoidal-States aktualisieren
         s[0] = 2.0 * x1 - s[0];
         s[1] = 2.0 * x2 - s[1];
         s[2] = 2.0 * x3 - s[2];
@@ -209,7 +232,8 @@ private:
             }
         }
 
-        const double x0 = input - k * fastTanh(x4);
+        const double sx4_final = fastTanh(alpha * x4) * invAlpha;
+        const double x0 = compInput - k * sx4_final;
 
         switch (tapSlope) {
             case Slope::Slope6:  return x0 - x1;
