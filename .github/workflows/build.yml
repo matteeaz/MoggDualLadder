@@ -1,0 +1,31 @@
+name: Build VST3 & AU Plugin
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Configure CMake
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build Plugin
+        run: cmake --build build --config Release --parallel
+
+      - name: Upload Compiled Plugin Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: MoggDualLadder-${{ matrix.os }}
+          path: build/MoggDualLadder_artefacts/Release
