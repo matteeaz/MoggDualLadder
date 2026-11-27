@@ -39,7 +39,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout MoggDualLadderAudioProcessor
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
 
     auto hpFreqRange = juce::NormalisableRange<float>(10.0f, 20000.0f, 0.1f, 0.25f);
-    auto lpFreqRange = juce::NormalisableRange<float>(20.0f, 30000.0f, 0.1f, 0.25f);
+    auto lpFreqRange = juce::NormalisableRange<float>(20.0f, 22000.0f, 0.1f, 0.25f);
     auto levelRange  = juce::NormalisableRange<float>(-10.0f, 10.0f, 0.1f);
     auto resRange    = juce::NormalisableRange<float>(0.0f, 1.0f, 0.001f);
     auto satRange    = juce::NormalisableRange<float>(1.0f, 11.0f, 0.1f);
@@ -56,7 +56,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout MoggDualLadderAudioProcessor
         juce::AudioParameterFloatAttributes().withLabel("dB")));
 
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID("lpFreq", 1), "Lowpass Cutoff", lpFreqRange, 30000.0f,
+        juce::ParameterID("lpFreq", 1), "Lowpass Cutoff", lpFreqRange, 22000.0f,
         juce::AudioParameterFloatAttributes().withLabel("Hz")));
 
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
@@ -115,7 +115,7 @@ void MoggDualLadderAudioProcessor::parameterChanged(const juce::String& paramete
     constexpr float minHpLimit = 10.0f;
     constexpr float maxHpLimit = 20000.0f;
     constexpr float minLpLimit = 20.0f;
-    constexpr float maxLpLimit = 30000.0f;
+    constexpr float maxLpLimit = 22000.0f;
     constexpr float minRatio   = minHpLimit / maxLpLimit;
     constexpr float maxRatio   = maxHpLimit / minLpLimit;
 
@@ -276,7 +276,7 @@ void MoggDualLadderAudioProcessor::setStateInformation(const void* data, int siz
 
         if (linkParam->load() > 0.5f) {
             const float ratio = std::clamp(hpFreqParam->load() / std::max(lpFreqParam->load(), 20.0f),
-                                           10.0f / 30000.0f, 1000.0f);
+                                           10.0f / 22000.0f, 1000.0f);
             linkedFreqRatio.store(ratio);
         }
     }
