@@ -17,7 +17,7 @@ private:
 
     juce::Slider inGainSlider, outGainSlider;
     juce::Slider hpFreqSlider, hpResSlider, hpSatSlider;
-    juce::Slider screamSlider;
+    juce::Slider dirtSlider;
     juce::Slider lpFreqSlider, lpResSlider, lpSatSlider;
 
     juce::ComboBox hpSatModeBox, lpSatModeBox;
@@ -32,7 +32,7 @@ private:
 
     juce::Label inGainLabel, outGainLabel;
     juce::Label hpFreqLabel, hpResLabel, hpSatLabel;
-    juce::Label screamLabel;
+    juce::Label dirtLabel;
     juce::Label lpFreqLabel, lpResLabel, lpSatLabel;
 
     using SliderAttachment   = juce::AudioProcessorValueTreeState::SliderAttachment;
@@ -41,7 +41,7 @@ private:
 
     std::unique_ptr<SliderAttachment> inGainAttachment, outGainAttachment;
     std::unique_ptr<SliderAttachment> hpFreqAttachment, hpResAttachment, hpSatAttachment;
-    std::unique_ptr<SliderAttachment> screamAttachment;
+    std::unique_ptr<SliderAttachment> dirtAttachment;
     std::unique_ptr<SliderAttachment> lpFreqAttachment, lpResAttachment, lpSatAttachment;
     std::unique_ptr<ComboBoxAttachment> hpSatModeAttachment, lpSatModeAttachment;
     std::unique_ptr<ButtonAttachment> linkAttachment;
