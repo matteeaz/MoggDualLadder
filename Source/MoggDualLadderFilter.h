@@ -27,16 +27,16 @@ public:
 
     void setParameters(float lpFreqHz, float hpFreqHz,
                        float lpResonance, float hpResonance,
-                       float driveDb, float inGainDb, float outGainDb,
+                       float inGainDb, float outGainDb,
                        Slope newSlope) {
         const float maxFreq = static_cast<float>(sampleRate * 0.45);
         targetLpFreq = std::clamp(lpFreqHz, 10.0f, maxFreq);
         targetHpFreq = std::clamp(hpFreqHz, 10.0f, maxFreq);
 
+        // Resonanz 0.0 bis 1.0 -> intern 0.0 bis 4.15 (Selbstoszillation knapp unter 4.0)
         lpRes = static_cast<double>(std::clamp(lpResonance, 0.0f, 1.05f)) * 4.15 * resTolerance;
         hpRes = static_cast<double>(std::clamp(hpResonance, 0.0f, 1.05f)) * 4.15 * resTolerance;
 
-        targetDrive   = std::pow(10.0, static_cast<double>(driveDb) / 20.0);
         targetInGain  = std::pow(10.0, static_cast<double>(std::clamp(inGainDb, -10.0f, 10.0f)) / 20.0);
         targetOutGain = std::pow(10.0, static_cast<double>(std::clamp(outGainDb, -10.0f, 10.0f)) / 20.0);
 
@@ -64,23 +64,18 @@ public:
     float processSample(float input) {
         smoothLpG     += smoothCoeff * (targetLpG - smoothLpG);
         smoothHpG     += smoothCoeff * (targetHpG - smoothHpG);
-        smoothDrive   += smoothCoeff * (targetDrive - smoothDrive);
         smoothInGain  += smoothCoeff * (targetInGain - smoothInGain);
         smoothOutGain += smoothCoeff * (targetOutGain - smoothOutGain);
 
-        // Input Level vor den Filterstufen
         const double scaledIn = static_cast<double>(input) * smoothInGain;
 
         // 1. Stufe: Mogg Highpass
-        double hpOut = processMoggStage(scaledIn, smoothHpG, hpRes, smoothDrive, hpState, hpState2, true);
+        double hpOut = processMoggStage(scaledIn, smoothHpG, hpRes, hpState, hpState2, true);
 
         // 2. Stufe: Mogg Lowpass
-        double lpOut = processMoggStage(hpOut, smoothLpG, lpRes, smoothDrive, lpState, lpState2, false);
+        double lpOut = processMoggStage(hpOut, smoothLpG, lpRes, lpState, lpState2, false);
 
-        // Interne Drive-Pegelkompensation + Output Level
-        const double makeupGain = 1.0 / (1.0 + 0.42 * (smoothDrive - 1.0));
-
-        return static_cast<float>(lpOut * makeupGain * smoothOutGain);
+        return static_cast<float>(lpOut * smoothOutGain);
     }
 
 private:
@@ -95,7 +90,6 @@ private:
 
     double lpRes = 0.0;
     double hpRes = 0.0;
-    double targetDrive = 1.0, smoothDrive = 1.0;
     double targetInGain = 1.0, smoothInGain = 1.0;
     double targetOutGain = 1.0, smoothOutGain = 1.0;
     Slope slope = Slope::Slope24;
@@ -121,97 +115,109 @@ private:
     void snapSmoothing() {
         smoothLpG     = targetLpG;
         smoothHpG     = targetHpG;
-        smoothDrive   = targetDrive;
         smoothInGain  = targetInGain;
         smoothOutGain = targetOutGain;
     }
 
-    double processMoggStage(double input, double g, double k, double stageDrive,
+    double processMoggStage(double input, double g, double k,
                             double s1[4], double s2[4], bool isHighpass) {
         const Slope activeBlockSlope = (slope == Slope::Slope48) ? Slope::Slope24 : slope;
-        double out = processSingleLadder(input, g, k, stageDrive, s1, isHighpass, activeBlockSlope);
+        double out = processSingleLadder(input, g, k, s1, isHighpass, activeBlockSlope);
 
         if (slope == Slope::Slope48) {
             const double k2 = std::min(k * 0.35, 1.4);
-            out = processSingleLadder(out, g, k2, 1.0, s2, isHighpass, Slope::Slope24);
+            out = processSingleLadder(out, g, k2, s2, isHighpass, Slope::Slope24);
         }
 
         return out;
     }
 
-    double processSingleLadder(double input, double g, double k, double stageDrive,
+    // Physikalisches 4-Pol Moog Ladder Modell mit exaktem Unity-Gain im Durchlassbereich
+    double processSingleLadder(double input, double g, double k,
                                double s[4], bool isHighpass, Slope tapSlope) {
-        const double G = g / (1.0 + g);
-        const double G2 = G * G;
-        const double G3 = G2 * G;
-        const double G4 = G2 * G2;
+        // Startwerte aus den Integrator-Zuständen
+        double x1 = s[0];
+        double x2 = s[1];
+        double x3 = s[2];
+        double x4 = s[3];
 
-        const double S = G3 * s[0] + G2 * s[1] + G * s[2] + s[3];
-        const double drivenInput = input * stageDrive;
+        // Geschlossener 4x4 Newton-Raphson-Solver für die Trapezoidal-Integration:
+        // x_n - s_n = g * (tanh(x_{n-1}) - tanh(x_n))
+        for (int iter = 0; iter < 3; ++iter) {
+            const double tx4 = fastTanh(x4);
+            const double x0  = input - k * tx4;
 
-        double y4 = (G4 * asymTanh(drivenInput) + S) / (1.0 + k * G4);
+            const double tx0 = fastTanh(x0);
+            const double tx1 = fastTanh(x1);
+            const double tx2 = fastTanh(x2);
+            const double tx3 = fastTanh(x3);
 
-        for (int iter = 0; iter < 4; ++iter) {
-            const double tanh_y4  = fastTanh(y4);
-            const double sech2_y4 = 1.0 - tanh_y4 * tanh_y4;
+            const double f1 = x1 - s[0] - g * (tx0 - tx1);
+            const double f2 = x2 - s[1] - g * (tx1 - tx2);
+            const double f3 = x3 - s[2] - g * (tx2 - tx3);
+            const double f4 = x4 - s[3] - g * (tx3 - tx4);
 
-            const double diff      = drivenInput - k * tanh_y4;
-            const double u_est     = asymTanh(diff);
-            const double du_ddiff  = asymSech2(diff);
+            const double d0 = 1.0 - tx0 * tx0;
+            const double d1 = 1.0 - tx1 * tx1;
+            const double d2 = 1.0 - tx2 * tx2;
+            const double d3 = 1.0 - tx3 * tx3;
+            const double d4 = 1.0 - tx4 * tx4;
 
-            const double f  = G4 * u_est + S - y4;
-            const double df = -G4 * k * du_ddiff * sech2_y4 - 1.0;
+            const double a1 = 1.0 + g * d1;
+            const double a2 = 1.0 + g * d2;
+            const double a3 = 1.0 + g * d3;
+            const double a4 = 1.0 + g * d4;
 
-            y4 -= f / df;
+            const double b1 = g * d1;
+            const double b2 = g * d2;
+            const double b3 = g * d3;
+            const double c  = g * k * d0 * d4;
+
+            const double p1 = -f1 / a1;
+            const double q1 = c / a1;
+
+            const double p2 = (-f2 + b1 * p1) / a2;
+            const double q2 = (b1 * q1) / a2;
+
+            const double p3 = (-f3 + b2 * p2) / a3;
+            const double q3 = (b2 * q2) / a3;
+
+            const double dx4 = (-f4 + b3 * p3) / (a4 + b3 * q3);
+            const double dx3 = p3 - q3 * dx4;
+            const double dx2 = p2 - q2 * dx4;
+            const double dx1 = p1 - q1 * dx4;
+
+            x1 += dx1;
+            x2 += dx2;
+            x3 += dx3;
+            x4 += dx4;
         }
 
-        const double u = asymTanh(drivenInput - k * fastTanh(y4));
-
-        const double v1 = G * (u - s[0]);
-        const double y1 = fastTanh(v1 + s[0]);
-        s[0] = y1 + v1;
-
-        const double v2 = G * (y1 - s[1]);
-        const double y2 = fastTanh(v2 + s[1]);
-        s[1] = y2 + v2;
-
-        const double v3 = G * (y2 - s[2]);
-        const double y3 = fastTanh(v3 + s[2]);
-        s[2] = y3 + v3;
-
-        const double v4 = G * (y3 - s[3]);
-        const double y4_final = fastTanh(v4 + s[3]);
-        s[3] = y4_final + v4;
+        // Trapezoidal-States aktualisieren
+        s[0] = 2.0 * x1 - s[0];
+        s[1] = 2.0 * x2 - s[1];
+        s[2] = 2.0 * x3 - s[2];
+        s[3] = 2.0 * x4 - s[3];
 
         if (!isHighpass) {
             switch (tapSlope) {
-                case Slope::Slope6:  return y1;
-                case Slope::Slope12: return y2;
+                case Slope::Slope6:  return x1;
+                case Slope::Slope12: return x2;
                 case Slope::Slope24:
                 case Slope::Slope48:
-                default:             return y4_final;
+                default:             return x4;
             }
         }
 
+        const double x0 = input - k * fastTanh(x4);
+
         switch (tapSlope) {
-            case Slope::Slope6:  return u - y1;
-            case Slope::Slope12: return u - 2.0 * y1 + y2;
+            case Slope::Slope6:  return x0 - x1;
+            case Slope::Slope12: return x0 - 2.0 * x1 + x2;
             case Slope::Slope24:
             case Slope::Slope48:
-            default:             return u - 4.0 * y1 + 6.0 * y2 - 4.0 * y3 + y4_final;
+            default:             return x0 - 4.0 * x1 + 6.0 * x2 - 4.0 * x3 + x4;
         }
-    }
-
-    inline double asymTanh(double x) const {
-        constexpr double bias = 0.08;
-        constexpr double biasOffset = 0.07982977;
-        return fastTanh(x + bias) - biasOffset;
-    }
-
-    inline double asymSech2(double x) const {
-        constexpr double bias = 0.08;
-        const double t = fastTanh(x + bias);
-        return 1.0 - t * t;
     }
 
     inline double fastTanh(double x) const {
