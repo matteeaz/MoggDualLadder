@@ -12,6 +12,13 @@ public:
         Slope48 = 3
     };
 
+    enum class SatMode {
+        Ladder = 0,
+        Warm = 1,
+        Fold = 2,
+        Grit = 3
+    };
+
     void setSampleRate(double sr) {
         sampleRate = std::max(sr, 8000.0);
         smoothCoeff = 1.0 - std::exp(-1.0 / (0.005 * sampleRate));
@@ -27,8 +34,9 @@ public:
 
     void setParameters(float lpFreqHz, float hpFreqHz,
                        float lpResonance, float hpResonance,
-                       float hpSat, bool hpSatTo22,
-                       float lpSat, bool lpSatTo22,
+                       float hpSat, SatMode newHpSatMode,
+                       float lpSat, SatMode newLpSatMode,
+                       float screamPercent,
                        float inGainDb, float outGainDb,
                        Slope newSlope) {
         const float maxFreq = static_cast<float>(sampleRate * 0.45);
@@ -40,15 +48,17 @@ public:
         hpRes = static_cast<double>(std::clamp(hpResonance, 0.0f, 1.05f)) * 4.15 * resTolerance;
 
         // UI-Skala 1.0 bis 11.0 -> intern musikalisch skaliert auf alpha 1.0 (natürlich) bis 4.5 (+13 dB)
-        // Mit aktivem TO 22 Verdopplung auf 2.0 bis 9.0 (+19 dB)
         const double hpNorm = (std::clamp(static_cast<double>(hpSat), 1.0, 11.0) - 1.0) / 10.0;
         const double lpNorm = (std::clamp(static_cast<double>(lpSat), 1.0, 11.0) - 1.0) / 10.0;
 
-        const double hpBaseAlpha = 1.0 + 3.5 * hpNorm;
-        const double lpBaseAlpha = 1.0 + 3.5 * lpNorm;
+        targetHpAlpha = 1.0 + 3.5 * hpNorm;
+        targetLpAlpha = 1.0 + 3.5 * lpNorm;
 
-        targetHpAlpha = hpSatTo22 ? (hpBaseAlpha * 2.0) : hpBaseAlpha;
-        targetLpAlpha = lpSatTo22 ? (lpBaseAlpha * 2.0) : lpBaseAlpha;
+        hpSatMode = newHpSatMode;
+        lpSatMode = newLpSatMode;
+
+        // Cross-Feedback (LP -> HP) 0..100 % -> 0.0 bis 0.92
+        targetScream = std::clamp(static_cast<double>(screamPercent) / 100.0, 0.0, 1.0) * 0.92;
 
         targetInGain  = std::pow(10.0, static_cast<double>(std::clamp(inGainDb, -10.0f, 10.0f)) / 20.0);
         targetOutGain = std::pow(10.0, static_cast<double>(std::clamp(outGainDb, -10.0f, 10.0f)) / 20.0);
@@ -71,6 +81,7 @@ public:
             lpState2[i] = 0.0;
             hpState2[i] = 0.0;
         }
+        crossFbState = 0.0;
         snapSmoothing();
     }
 
@@ -79,16 +90,24 @@ public:
         smoothHpG     += smoothCoeff * (targetHpG - smoothHpG);
         smoothHpAlpha += smoothCoeff * (targetHpAlpha - smoothHpAlpha);
         smoothLpAlpha += smoothCoeff * (targetLpAlpha - smoothLpAlpha);
+        smoothScream  += smoothCoeff * (targetScream - smoothScream);
         smoothInGain  += smoothCoeff * (targetInGain - smoothInGain);
         smoothOutGain += smoothCoeff * (targetOutGain - smoothOutGain);
 
         const double scaledIn = static_cast<double>(input) * smoothInGain;
 
-        // 1. Stufe: Mogg Highpass mit eigener Sättigung
-        double hpOut = processMoggStage(scaledIn, smoothHpG, hpRes, smoothHpAlpha, hpState, hpState2, true);
+        // Cross-Feedback vom gesättigten Lowpass-Ausgang zurück in den Highpass-Eingang
+        const double fbSignal = (smoothScream > 1.0e-6)
+                                    ? (fastTanh(crossFbState * 1.25) * smoothScream)
+                                    : 0.0;
 
-        // 2. Stufe: Mogg Lowpass mit eigener Sättigung
-        double lpOut = processMoggStage(hpOut, smoothLpG, lpRes, smoothLpAlpha, lpState, lpState2, false);
+        // 1. Stufe: Mogg Highpass
+        double hpOut = processMoggStage(scaledIn + fbSignal, smoothHpG, hpRes, smoothHpAlpha, hpSatMode, hpState, hpState2, true);
+
+        // 2. Stufe: Mogg Lowpass
+        double lpOut = processMoggStage(hpOut, smoothLpG, lpRes, smoothLpAlpha, lpSatMode, lpState, lpState2, false);
+
+        crossFbState = std::isfinite(lpOut) ? std::clamp(lpOut, -4.0, 4.0) : 0.0;
 
         return static_cast<float>(lpOut * smoothOutGain);
     }
@@ -107,9 +126,13 @@ private:
     double hpRes = 0.0;
     double targetHpAlpha = 1.0, smoothHpAlpha = 1.0;
     double targetLpAlpha = 1.0, smoothLpAlpha = 1.0;
-    double targetInGain = 1.0, smoothInGain = 1.0;
+    double targetScream  = 0.0, smoothScream  = 0.0;
+    double targetInGain  = 1.0, smoothInGain  = 1.0;
     double targetOutGain = 1.0, smoothOutGain = 1.0;
+
     Slope slope = Slope::Slope24;
+    SatMode hpSatMode = SatMode::Ladder;
+    SatMode lpSatMode = SatMode::Ladder;
 
     double targetLpG = 0.0, smoothLpG = 0.0;
     double targetHpG = 0.0, smoothHpG = 0.0;
@@ -118,6 +141,7 @@ private:
     double hpState[4]  = { 0.0, 0.0, 0.0, 0.0 };
     double lpState2[4] = { 0.0, 0.0, 0.0, 0.0 };
     double hpState2[4] = { 0.0, 0.0, 0.0, 0.0 };
+    double crossFbState = 0.0;
 
     void updateFrequencies() {
         constexpr double pi = 3.14159265358979323846;
@@ -134,26 +158,67 @@ private:
         smoothHpG     = targetHpG;
         smoothHpAlpha = targetHpAlpha;
         smoothLpAlpha = targetLpAlpha;
+        smoothScream  = targetScream;
         smoothInGain  = targetInGain;
         smoothOutGain = targetOutGain;
     }
 
-    double processMoggStage(double input, double g, double k, double alpha,
+    double processMoggStage(double input, double g, double k, double alpha, SatMode mode,
                             double s1[4], double s2[4], bool isHighpass) {
         const Slope activeBlockSlope = (slope == Slope::Slope48) ? Slope::Slope24 : slope;
-        double out = processSingleLadder(input, g, k, alpha, s1, isHighpass, activeBlockSlope);
+        double out = processSingleLadder(input, g, k, alpha, mode, s1, isHighpass, activeBlockSlope);
 
         if (slope == Slope::Slope48) {
             const double k2 = std::min(k * 0.35, 1.4);
             const double alpha2 = 1.0 + (alpha - 1.0) * 0.35;
-            out = processSingleLadder(out, g, k2, alpha2, s2, isHighpass, Slope::Slope24);
+            out = processSingleLadder(out, g, k2, alpha2, mode, s2, isHighpass, Slope::Slope24);
         }
 
         return out;
     }
 
-    // Physikalisches 4-Pol Moog Ladder Modell mit skalierbarer Sättigung und 0 dB Passband-Gain
-    double processSingleLadder(double input, double g, double k, double alpha,
+    // Kennlinien-Auswertung mit exakter Ableitung und normierter Steigung am Ursprung (0 dB Passband-Gain)
+    inline double evalSat(double x, double alpha, double invAlpha, SatMode mode, double& outDer) const {
+        const double u = alpha * x;
+
+        switch (mode) {
+            case SatMode::Warm: {
+                constexpr double bias = 0.45;
+                constexpr double tanhBias = 0.4218990052500079;
+                constexpr double invSech2Bias = 1.216546722769713;
+                const double t = fastTanh(u + bias);
+                outDer = (1.0 - t * t) * invSech2Bias;
+                return (t - tanhBias) * invSech2Bias * invAlpha;
+            }
+            case SatMode::Fold: {
+                constexpr double beta = 7.853981633974483; // 2.5 * pi
+                constexpr double invBeta = 0.12732395447351627;
+                const double t = fastTanh(u * invBeta);
+                const double phase = beta * t;
+                outDer = std::cos(phase) * (1.0 - t * t);
+                return std::sin(phase) * invAlpha;
+            }
+            case SatMode::Grit: {
+                constexpr double c = 0.82;
+                constexpr double k = 1.15;
+                constexpr double ck = c * k;
+                constexpr double norm = 1.0 / (1.0 - c);
+                const double t1 = fastTanh(u);
+                const double t2 = fastTanh(k * u);
+                outDer = norm * ((1.0 - t1 * t1) - ck * (1.0 - t2 * t2));
+                return norm * (t1 - c * t2) * invAlpha;
+            }
+            case SatMode::Ladder:
+            default: {
+                const double t = fastTanh(u);
+                outDer = 1.0 - t * t;
+                return t * invAlpha;
+            }
+        }
+    }
+
+    // Physikalisches 4-Pol Moog Ladder Modell mit geschlossenem 4x4 Newton-Raphson-Solver
+    double processSingleLadder(double input, double g, double k, double alpha, SatMode mode,
                                double s[4], bool isHighpass, Slope tapSlope) {
         constexpr double resPassbandComp = 0.65;
         const double compInput = isHighpass ? input : input * (1.0 + resPassbandComp * k);
@@ -164,32 +229,21 @@ private:
         double x3 = s[2];
         double x4 = s[3];
 
-        // Geschlossener 4x4 Newton-Raphson-Solver
         for (int iter = 0; iter < 5; ++iter) {
-            const double tx4 = fastTanh(alpha * x4);
-            const double sx4 = tx4 * invAlpha;
+            double d0 = 1.0, d1 = 1.0, d2 = 1.0, d3 = 1.0, d4 = 1.0;
+
+            const double sx4 = evalSat(x4, alpha, invAlpha, mode, d4);
             const double x0  = compInput - k * sx4;
 
-            const double tx0 = fastTanh(alpha * x0);
-            const double tx1 = fastTanh(alpha * x1);
-            const double tx2 = fastTanh(alpha * x2);
-            const double tx3 = fastTanh(alpha * x3);
-
-            const double sx0 = tx0 * invAlpha;
-            const double sx1 = tx1 * invAlpha;
-            const double sx2 = tx2 * invAlpha;
-            const double sx3 = tx3 * invAlpha;
+            const double sx0 = evalSat(x0, alpha, invAlpha, mode, d0);
+            const double sx1 = evalSat(x1, alpha, invAlpha, mode, d1);
+            const double sx2 = evalSat(x2, alpha, invAlpha, mode, d2);
+            const double sx3 = evalSat(x3, alpha, invAlpha, mode, d3);
 
             const double f1 = x1 - s[0] - g * (sx0 - sx1);
             const double f2 = x2 - s[1] - g * (sx1 - sx2);
             const double f3 = x3 - s[2] - g * (sx2 - sx3);
             const double f4 = x4 - s[3] - g * (sx3 - sx4);
-
-            const double d0 = 1.0 - tx0 * tx0;
-            const double d1 = 1.0 - tx1 * tx1;
-            const double d2 = 1.0 - tx2 * tx2;
-            const double d3 = 1.0 - tx3 * tx3;
-            const double d4 = 1.0 - tx4 * tx4;
 
             const double a1 = 1.0 + g * d1;
             const double a2 = 1.0 + g * d2;
@@ -236,7 +290,8 @@ private:
             }
         }
 
-        const double sx4_final = fastTanh(alpha * x4) * invAlpha;
+        double unusedDer = 1.0;
+        const double sx4_final = evalSat(x4, alpha, invAlpha, mode, unusedDer);
         const double x0 = compInput - k * sx4_final;
 
         switch (tapSlope) {
