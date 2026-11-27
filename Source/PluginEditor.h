@@ -1,47 +1,65 @@
 #pragma once
 
 #include <juce_audio_processors/juce_audio_processors.h>
-#include <array>
-#include "PluginProcessor.h"
+#include <juce_dsp/juce_dsp.h>
+#include <atomic>
+#include "MoggDualLadderFilter.h"
 
-class MoggDualLadderAudioProcessorEditor : public juce::AudioProcessorEditor {
+class MoggDualLadderAudioProcessor : public juce::AudioProcessor,
+                                     public juce::AudioProcessorValueTreeState::Listener {
 public:
-    explicit MoggDualLadderAudioProcessorEditor(MoggDualLadderAudioProcessor&);
-    ~MoggDualLadderAudioProcessorEditor() override = default;
+    MoggDualLadderAudioProcessor();
+    ~MoggDualLadderAudioProcessor() override;
 
-    void paint(juce::Graphics&) override;
-    void resized() override;
+    void prepareToPlay(double sampleRate, int samplesPerBlock) override;
+    void releaseResources() override;
+
+    bool isBusesLayoutSupported(const BusesLayout& layouts) const override;
+    void processBlock(juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+
+    juce::AudioProcessorEditor* createEditor() override;
+    bool hasEditor() const override { return true; }
+
+    const juce::String getName() const override { return JucePlugin_Name; }
+    bool acceptsMidi() const override { return false; }
+    bool producesMidi() const override { return false; }
+    bool isMidiEffect() const override { return false; }
+    double getTailLengthSeconds() const override { return 0.0; }
+
+    int getNumPrograms() override { return 1; }
+    int getCurrentProgram() override { return 0; }
+    void setCurrentProgram(int) override {}
+    const juce::String getProgramName(int) override { return {}; }
+    void changeProgramName(int, const juce::String&) override {}
+
+    void getStateInformation(juce::MemoryBlock& destData) override;
+    void setStateInformation(const void* data, int sizeInBytes) override;
+
+    void parameterChanged(const juce::String& parameterID, float newValue) override;
+
+    juce::AudioProcessorValueTreeState apvts;
 
 private:
-    MoggDualLadderAudioProcessor& audioProcessor;
+    static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
-    juce::Slider inGainSlider, outGainSlider;
-    juce::Slider hpFreqSlider, hpResSlider;
-    juce::Slider lpFreqSlider, lpResSlider;
-    juce::Slider driveSlider;
-    juce::ToggleButton linkButton { "LINK FREQ" };
+    MoggDualLadderFilter filterL;
+    MoggDualLadderFilter filterR;
 
-    std::array<juce::TextButton, 4> slopeButtons {
-        juce::TextButton("6 dB"),
-        juce::TextButton("12 dB"),
-        juce::TextButton("24 dB"),
-        juce::TextButton("48 dB")
+    juce::dsp::Oversampling<float> oversampling {
+        2, 2, juce::dsp::Oversampling<float>::filterHalfBandPolyphaseIIR, true
     };
 
-    juce::Label inGainLabel, outGainLabel;
-    juce::Label hpFreqLabel, hpResLabel, lpFreqLabel, lpResLabel, driveLabel;
+    std::atomic<float>* inGainParam  = nullptr;
+    std::atomic<float>* outGainParam = nullptr;
+    std::atomic<float>* lpFreqParam  = nullptr;
+    std::atomic<float>* hpFreqParam  = nullptr;
+    std::atomic<float>* lpResParam   = nullptr;
+    std::atomic<float>* hpResParam   = nullptr;
+    std::atomic<float>* linkParam    = nullptr;
+    std::atomic<float>* slopeParam   = nullptr;
 
-    using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
-    using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
+    std::atomic<float> linkedFreqRatio { 0.05f };
+    std::atomic<bool> isUpdatingLink { false };
 
-    std::unique_ptr<SliderAttachment> inGainAttachment, outGainAttachment;
-    std::unique_ptr<SliderAttachment> hpFreqAttachment, hpResAttachment;
-    std::unique_ptr<SliderAttachment> lpFreqAttachment, lpResAttachment;
-    std::unique_ptr<SliderAttachment> driveAttachment;
-    std::unique_ptr<ButtonAttachment> linkAttachment;
-    std::unique_ptr<juce::ParameterAttachment> slopeAttachment;
-
-    void setupRotarySlider(juce::Slider& slider, juce::Label& label, const juce::String& text);
-
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MoggDualLadderAudioProcessorEditor)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MoggDualLadderAudioProcessor)
 };
