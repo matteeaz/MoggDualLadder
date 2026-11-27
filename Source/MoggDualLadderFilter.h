@@ -69,8 +69,14 @@ public:
         hpSatMode = newHpSatMode;
         lpSatMode = newLpSatMode;
 
-        // Dirt 0..100 % -> interne Modulationsstärke für Noise + Vinyl-Knackser
+        // Dirt 0..100 % + Skalierung auf 12 dB/Okt. als Referenzpunkt
         targetDirt = std::clamp(static_cast<double>(dirtPercent) / 100.0, 0.0, 1.0);
+        switch (newSlope) {
+            case Slope::Slope6:  targetDirtSlopeScale = 1.55; break;
+            case Slope::Slope12: targetDirtSlopeScale = 1.00; break;
+            case Slope::Slope24: targetDirtSlopeScale = 0.62; break;
+            case Slope::Slope48: targetDirtSlopeScale = 0.42; break;
+        }
 
         targetInGain  = std::pow(10.0, static_cast<double>(std::clamp(inGainDb, -10.0f, 10.0f)) / 20.0);
         targetOutGain = std::pow(10.0, static_cast<double>(std::clamp(outGainDb, -10.0f, 10.0f)) / 20.0);
@@ -100,13 +106,14 @@ public:
     }
 
     float processSample(float input) {
-        smoothLpG     += smoothCoeff * (targetLpG - smoothLpG);
-        smoothHpG     += smoothCoeff * (targetHpG - smoothHpG);
-        smoothHpAlpha += smoothCoeff * (targetHpAlpha - smoothHpAlpha);
-        smoothLpAlpha += smoothCoeff * (targetLpAlpha - smoothLpAlpha);
-        smoothDirt    += smoothCoeff * (targetDirt - smoothDirt);
-        smoothInGain  += smoothCoeff * (targetInGain - smoothInGain);
-        smoothOutGain += smoothCoeff * (targetOutGain - smoothOutGain);
+        smoothLpG            += smoothCoeff * (targetLpG - smoothLpG);
+        smoothHpG            += smoothCoeff * (targetHpG - smoothHpG);
+        smoothHpAlpha        += smoothCoeff * (targetHpAlpha - smoothHpAlpha);
+        smoothLpAlpha        += smoothCoeff * (targetLpAlpha - smoothLpAlpha);
+        smoothDirt           += smoothCoeff * (targetDirt - smoothDirt);
+        smoothDirtSlopeScale += smoothCoeff * (targetDirtSlopeScale - smoothDirtSlopeScale);
+        smoothInGain         += smoothCoeff * (targetInGain - smoothInGain);
+        smoothOutGain        += smoothCoeff * (targetOutGain - smoothOutGain);
 
         double modFactor = 1.0;
         if (smoothDirt > 1.0e-6) {
@@ -133,9 +140,9 @@ public:
 
             const double crackleSum = std::clamp(dustEnv + crackleEnv, -2.2, 2.2);
 
-            // Oktav-skalierte Cutoff-Modulation
-            const double dirtCurve = smoothDirt * (0.45 + 0.55 * smoothDirt);
-            const double modOctaves = std::clamp(dirtCurve * (0.75 * normNoise + 1.45 * crackleSum), -2.5, 2.5);
+            // Oktav-skalierte Cutoff-Modulation mit Slope-Kompensation (Referenz: 12 dB)
+            const double dirtCurve  = smoothDirt * (0.45 + 0.55 * smoothDirt) * smoothDirtSlopeScale;
+            const double modOctaves = std::clamp(dirtCurve * (0.75 * normNoise + 1.45 * crackleSum), -3.2, 3.2);
             modFactor = std::exp2(modOctaves);
         } else {
             noiseLpState = 0.0;
@@ -167,16 +174,17 @@ private:
     double freqTolerance = 1.0;
     double resTolerance = 1.0;
 
-    float targetLpFreq = 30000.0f;
+    float targetLpFreq = 22000.0f;
     float targetHpFreq = 10.0f;
 
     double lpRes = 0.0;
     double hpRes = 0.0;
-    double targetHpAlpha = 1.0, smoothHpAlpha = 1.0;
-    double targetLpAlpha = 1.0, smoothLpAlpha = 1.0;
-    double targetDirt    = 0.0, smoothDirt    = 0.0;
-    double targetInGain  = 1.0, smoothInGain  = 1.0;
-    double targetOutGain = 1.0, smoothOutGain = 1.0;
+    double targetHpAlpha        = 1.0,  smoothHpAlpha        = 1.0;
+    double targetLpAlpha        = 1.0,  smoothLpAlpha        = 1.0;
+    double targetDirt           = 0.0,  smoothDirt           = 0.0;
+    double targetDirtSlopeScale = 0.62, smoothDirtSlopeScale = 0.62;
+    double targetInGain         = 1.0,  smoothInGain         = 1.0;
+    double targetOutGain        = 1.0,  smoothOutGain        = 1.0;
 
     Slope slope = Slope::Slope24;
     SatMode hpSatMode = SatMode::Ladder;
@@ -223,13 +231,14 @@ private:
     }
 
     void snapSmoothing() {
-        smoothLpG     = targetLpG;
-        smoothHpG     = targetHpG;
-        smoothHpAlpha = targetHpAlpha;
-        smoothLpAlpha = targetLpAlpha;
-        smoothDirt    = targetDirt;
-        smoothInGain  = targetInGain;
-        smoothOutGain = targetOutGain;
+        smoothLpG            = targetLpG;
+        smoothHpG            = targetHpG;
+        smoothHpAlpha        = targetHpAlpha;
+        smoothLpAlpha        = targetLpAlpha;
+        smoothDirt           = targetDirt;
+        smoothDirtSlopeScale = targetDirtSlopeScale;
+        smoothInGain         = targetInGain;
+        smoothOutGain        = targetOutGain;
     }
 
     double processMoggStage(double input, double g, double k, double alpha, SatMode mode,
