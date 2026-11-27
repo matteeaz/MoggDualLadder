@@ -4,15 +4,23 @@
 MoggDualLadderAudioProcessorEditor::MoggDualLadderAudioProcessorEditor(MoggDualLadderAudioProcessor& p)
     : AudioProcessorEditor(&p), audioProcessor(p)
 {
-    setupRotarySlider(inGainSlider,  inGainLabel,  "IN LEVEL");
-    setupRotarySlider(hpFreqSlider,  hpFreqLabel,  "HP CUTOFF");
-    setupRotarySlider(hpResSlider,   hpResLabel,   "HP RES");
-    setupRotarySlider(lpFreqSlider,  lpFreqLabel,  "LP CUTOFF");
-    setupRotarySlider(lpResSlider,   lpResLabel,   "LP RES");
-    setupRotarySlider(outGainSlider, outGainLabel, "OUT LEVEL");
+    const auto mainAccent = juce::Colours::orange;
+    const auto satAccent  = juce::Colour(0xffff5a26);
 
-    linkButton.setColour(juce::ToggleButton::textColourId, juce::Colours::orange);
-    linkButton.setColour(juce::ToggleButton::tickColourId, juce::Colours::orange);
+    setupRotarySlider(inGainSlider,  inGainLabel,  "IN LEVEL",  mainAccent);
+    setupRotarySlider(hpFreqSlider,  hpFreqLabel,  "HP CUTOFF", mainAccent);
+    setupRotarySlider(hpResSlider,   hpResLabel,   "HP RES",    mainAccent);
+    setupRotarySlider(hpSatSlider,   hpSatLabel,   "HP SAT",    satAccent);
+    setupRotarySlider(lpFreqSlider,  lpFreqLabel,  "LP CUTOFF", mainAccent);
+    setupRotarySlider(lpResSlider,   lpResLabel,   "LP RES",    mainAccent);
+    setupRotarySlider(lpSatSlider,   lpSatLabel,   "LP SAT",    satAccent);
+    setupRotarySlider(outGainSlider, outGainLabel, "OUT LEVEL", mainAccent);
+
+    setupBoostButton(hpSat2xButton);
+    setupBoostButton(lpSat2xButton);
+
+    linkButton.setColour(juce::ToggleButton::textColourId, mainAccent);
+    linkButton.setColour(juce::ToggleButton::tickColourId, mainAccent);
     addAndMakeVisible(linkButton);
 
     for (size_t i = 0; i < slopeButtons.size(); ++i) {
@@ -20,7 +28,7 @@ MoggDualLadderAudioProcessorEditor::MoggDualLadderAudioProcessorEditor(MoggDualL
         btn.setRadioGroupId(1001);
         btn.setClickingTogglesState(true);
         btn.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff18191c));
-        btn.setColour(juce::TextButton::buttonOnColourId, juce::Colours::orange);
+        btn.setColour(juce::TextButton::buttonOnColourId, mainAccent);
         btn.setColour(juce::TextButton::textColourOffId, juce::Colours::lightgrey);
         btn.setColour(juce::TextButton::textColourOnId, juce::Colour(0xff18191c));
 
@@ -53,26 +61,40 @@ MoggDualLadderAudioProcessorEditor::MoggDualLadderAudioProcessorEditor(MoggDualL
     inGainAttachment  = std::make_unique<SliderAttachment>(audioProcessor.apvts, "inGain",  inGainSlider);
     hpFreqAttachment  = std::make_unique<SliderAttachment>(audioProcessor.apvts, "hpFreq",  hpFreqSlider);
     hpResAttachment   = std::make_unique<SliderAttachment>(audioProcessor.apvts, "hpRes",   hpResSlider);
+    hpSatAttachment   = std::make_unique<SliderAttachment>(audioProcessor.apvts, "hpSat",   hpSatSlider);
+    hpSat2xAttachment = std::make_unique<ButtonAttachment>(audioProcessor.apvts, "hpSat2x", hpSat2xButton);
     lpFreqAttachment  = std::make_unique<SliderAttachment>(audioProcessor.apvts, "lpFreq",  lpFreqSlider);
     lpResAttachment   = std::make_unique<SliderAttachment>(audioProcessor.apvts, "lpRes",   lpResSlider);
+    lpSatAttachment   = std::make_unique<SliderAttachment>(audioProcessor.apvts, "lpSat",   lpSatSlider);
+    lpSat2xAttachment = std::make_unique<ButtonAttachment>(audioProcessor.apvts, "lpSat2x", lpSat2xButton);
     outGainAttachment = std::make_unique<SliderAttachment>(audioProcessor.apvts, "outGain", outGainSlider);
     linkAttachment    = std::make_unique<ButtonAttachment>(audioProcessor.apvts, "link",    linkButton);
 
-    setSize(760, 260);
+    setSize(940, 285);
 }
 
-void MoggDualLadderAudioProcessorEditor::setupRotarySlider(juce::Slider& slider, juce::Label& label, const juce::String& text) {
+void MoggDualLadderAudioProcessorEditor::setupRotarySlider(juce::Slider& slider, juce::Label& label,
+                                                           const juce::String& text, juce::Colour accent) {
     slider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
     slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 84, 20);
-    slider.setColour(juce::Slider::rotarySliderFillColourId, juce::Colours::orange);
+    slider.setColour(juce::Slider::rotarySliderFillColourId, accent);
     slider.setColour(juce::Slider::thumbColourId, juce::Colours::white);
     addAndMakeVisible(slider);
 
     label.setText(text, juce::dontSendNotification);
     label.setJustificationType(juce::Justification::centred);
-    label.setFont(juce::FontOptions(12.5f, juce::Font::bold));
+    label.setFont(juce::FontOptions(12.0f, juce::Font::bold));
     label.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
     addAndMakeVisible(label);
+}
+
+void MoggDualLadderAudioProcessorEditor::setupBoostButton(juce::TextButton& button) {
+    button.setClickingTogglesState(true);
+    button.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff18191c));
+    button.setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xffff5a26));
+    button.setColour(juce::TextButton::textColourOffId, juce::Colours::lightgrey);
+    button.setColour(juce::TextButton::textColourOnId, juce::Colours::white);
+    addAndMakeVisible(button);
 }
 
 void MoggDualLadderAudioProcessorEditor::paint(juce::Graphics& g) {
@@ -84,6 +106,16 @@ void MoggDualLadderAudioProcessorEditor::paint(juce::Graphics& g) {
     g.setColour(juce::Colours::white);
     g.setFont(juce::FontOptions(18.0f, juce::Font::bold));
     g.drawText("MOGG DUAL LADDER", 24, 20, 240, 26, juce::Justification::left);
+
+    auto inner = getLocalBounds().reduced(24);
+    const int colWidth = inner.getWidth() / 8;
+    const float topY = static_cast<float>(inner.getY() + 42);
+    const float botY = static_cast<float>(inner.getBottom() - 6);
+
+    g.setColour(juce::Colour(0xff353840));
+    g.drawLine(static_cast<float>(inner.getX() + colWidth),     topY, static_cast<float>(inner.getX() + colWidth),     botY, 1.0f);
+    g.drawLine(static_cast<float>(inner.getX() + colWidth * 4), topY, static_cast<float>(inner.getX() + colWidth * 4), botY, 1.0f);
+    g.drawLine(static_cast<float>(inner.getX() + colWidth * 7), topY, static_cast<float>(inner.getX() + colWidth * 7), botY, 1.0f);
 }
 
 void MoggDualLadderAudioProcessorEditor::resized() {
@@ -95,7 +127,7 @@ void MoggDualLadderAudioProcessorEditor::resized() {
     const int switchTotalWidth = 216;
     const int btnWidth = switchTotalWidth / 4;
     auto switchBounds = juce::Rectangle<int>(
-        (getWidth() - switchTotalWidth) / 2 + 15,
+        (getWidth() - switchTotalWidth) / 2,
         topBar.getY() + 1,
         switchTotalWidth,
         24
@@ -106,18 +138,26 @@ void MoggDualLadderAudioProcessorEditor::resized() {
     }
 
     area.removeFromTop(12);
-    const int colWidth = area.getWidth() / 6;
+    const int colWidth = area.getWidth() / 8;
 
-    auto placeControl = [&](juce::Slider& s, juce::Label& l) {
+    auto placeControl = [&](juce::Slider& s, juce::Label& l, juce::TextButton* boostBtn = nullptr) {
         auto col = area.removeFromLeft(colWidth).reduced(5);
         l.setBounds(col.removeFromTop(20));
+
+        auto bottomSlot = col.removeFromBottom(24);
+        if (boostBtn != nullptr) {
+            boostBtn->setBounds(bottomSlot.withSizeKeepingCentre(62, 20));
+        }
+
         s.setBounds(col);
     };
 
     placeControl(inGainSlider,  inGainLabel);
     placeControl(hpFreqSlider,  hpFreqLabel);
     placeControl(hpResSlider,   hpResLabel);
+    placeControl(hpSatSlider,   hpSatLabel, &hpSat2xButton);
     placeControl(lpFreqSlider,  lpFreqLabel);
     placeControl(lpResSlider,   lpResLabel);
+    placeControl(lpSatSlider,   lpSatLabel, &lpSat2xButton);
     placeControl(outGainSlider, outGainLabel);
 }
