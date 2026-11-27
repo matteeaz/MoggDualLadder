@@ -70,9 +70,26 @@ juce::AudioProcessorValueTreeState::ParameterLayout MoggDualLadderAudioProcessor
 }
 
 void MoggDualLadderAudioProcessor::parameterChanged(const juce::String& parameterID, float newValue) {
-    if (isUpdatingLink.load()) {
+    if (isRestoringState.load()) {
         return;
     }
+
+    bool expected = false;
+    if (!isUpdatingLink.compare_exchange_strong(expected, true)) {
+        return;
+    }
+
+    struct ResetGuard {
+        std::atomic<bool>& flag;
+        ~ResetGuard() { flag.store(false); }
+    } guard { isUpdatingLink };
+
+    constexpr float minHpLimit = 10.0f;
+    constexpr float maxHpLimit = 20000.0f;
+    constexpr float minLpLimit = 20.0f;
+    constexpr float maxLpLimit = 30000.0f;
+    constexpr float minRatio   = minHpLimit / maxLpLimit; // 10 / 30000
+    constexpr float maxRatio   = maxHpLimit / minLpLimit; // 20000 / 20
 
     const float currentLp = lpFreqParam->load();
     const float currentHp = hpFreqParam->load();
@@ -80,19 +97,55 @@ void MoggDualLadderAudioProcessor::parameterChanged(const juce::String& paramete
 
     if (parameterID == "link") {
         if (newValue > 0.5f) {
-            float ratio = std::clamp(currentHp / std::max(currentLp, 20.0f), 0.0001f, 1000.0f);
+            const float ratio = std::clamp(currentHp / std::max(currentLp, minLpLimit), minRatio, maxRatio);
             linkedFreqRatio.store(ratio);
         }
     } else if (parameterID == "lpFreq" && isLinked) {
-        if (auto* hpParam = apvts.getParameter("hpFreq")) {
-            isUpdatingLink.store(true);
-            float targetHp = std::clamp(newValue * linkedFreqRatio.load(), 10.0f, 20000.0f);
+        auto* lpParam = apvts.getParameter("lpFreq");
+        auto* hpParam = apvts.getParameter("hpFreq");
+
+        if (lpParam != nullptr && hpParam != nullptr) {
+            const float ratio = std::clamp(linkedFreqRatio.load(), minRatio, maxRatio);
+
+            // Erlaubter LP-Bereich, innerhalb dessen HP weder unter 10 Hz noch über 20 kHz gerät
+            const float coupledMinLp = std::max(minLpLimit, minHpLimit / ratio);
+            const float coupledMaxLp = std::max(coupledMinLp, std::min(maxLpLimit, maxHpLimit / ratio));
+
+            const float clampedLp = std::clamp(newValue, coupledMinLp, coupledMaxLp);
+            const float targetHp  = std::clamp(clampedLp * ratio, minHpLimit, maxHpLimit);
+
+            const float normLp    = lpParam->convertTo0to1(clampedLp);
+            const float snappedLp = lpParam->convertFrom0to1(normLp);
+
+            if (std::abs(snappedLp - newValue) > 0.001f) {
+                lpParam->setValueNotifyingHost(normLp);
+            }
+
             hpParam->setValueNotifyingHost(hpParam->convertTo0to1(targetHp));
-            isUpdatingLink.store(false);
         }
     } else if (parameterID == "hpFreq" && isLinked) {
-        float ratio = std::clamp(newValue / std::max(currentLp, 20.0f), 0.0001f, 1000.0f);
-        linkedFreqRatio.store(ratio);
+        auto* lpParam = apvts.getParameter("lpFreq");
+        auto* hpParam = apvts.getParameter("hpFreq");
+
+        if (lpParam != nullptr && hpParam != nullptr) {
+            const float ratio = std::clamp(linkedFreqRatio.load(), minRatio, maxRatio);
+
+            // Erlaubter HP-Bereich, innerhalb dessen LP weder unter 20 Hz noch über 30 kHz gerät
+            const float coupledMinHp = std::max(minHpLimit, minLpLimit * ratio);
+            const float coupledMaxHp = std::max(coupledMinHp, std::min(maxHpLimit, maxLpLimit * ratio));
+
+            const float clampedHp = std::clamp(newValue, coupledMinHp, coupledMaxHp);
+            const float targetLp  = std::clamp(clampedHp / ratio, minLpLimit, maxLpLimit);
+
+            const float normHp    = hpParam->convertTo0to1(clampedHp);
+            const float snappedHp = hpParam->convertFrom0to1(normHp);
+
+            if (std::abs(snappedHp - newValue) > 0.001f) {
+                hpParam->setValueNotifyingHost(normHp);
+            }
+
+            lpParam->setValueNotifyingHost(lpParam->convertTo0to1(targetLp));
+        }
     }
 }
 
@@ -178,7 +231,15 @@ void MoggDualLadderAudioProcessor::getStateInformation(juce::MemoryBlock& destDa
 void MoggDualLadderAudioProcessor::setStateInformation(const void* data, int sizeInBytes) {
     std::unique_ptr<juce::XmlElement> xmlState(getXmlFromBinary(data, sizeInBytes));
     if (xmlState != nullptr && xmlState->hasTagName(apvts.state.getType())) {
+        isRestoringState.store(true);
         apvts.replaceState(juce::ValueTree::fromXml(*xmlState));
+        isRestoringState.store(false);
+
+        if (linkParam->load() > 0.5f) {
+            const float ratio = std::clamp(hpFreqParam->load() / std::max(lpFreqParam->load(), 20.0f),
+                                           10.0f / 30000.0f, 1000.0f);
+            linkedFreqRatio.store(ratio);
+        }
     }
 }
 
