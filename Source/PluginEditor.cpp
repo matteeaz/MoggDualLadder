@@ -3,106 +3,21 @@
 #include <cmath>
 
 namespace {
-    // Knob-Stile passend zur Eurorack-Hardware-Vorlage:
-    // 0 = Schwarzer geriffelter Metallregler mit Neon-Kantenring
-    // 1 = Großer zentraler Hero-Regler mit Pink/Türkis-Verlauf & Skalenkranz
-    // 2 = Gefrosteter transparenter Polycarbonat-Regler mit Neon-Kern
-    constexpr int kKnobBlackMetal = 0;
-    constexpr int kKnobHeroDual   = 1;
-    constexpr int kKnobFrosted    = 2;
-
-    const juce::Colour kRailBlack      { 0xff101216 };
-    const juce::Colour kOledDark       { 0xff0d0f14 };
-    const juce::Colour kEtchedInk      { 0xff161920 };
-    const juce::Colour kSilverBright   { 0xffe4e8ef };
-    const juce::Colour kSilverBase     { 0xffc6cdd8 };
-    const juce::Colour kSilverShadow   { 0xff8d96a5 };
-    const juce::Colour kCrispWhite     { 0xfff8faff };
-    const juce::Colour kNeonPink       { 0xffff1e8a };
+    const juce::Colour kChassisBlack   { 0xff0d0e11 };
+    const juce::Colour kPanelDark      { 0xff14161b };
+    const juce::Colour kRecessBlack    { 0xff090a0c };
+    const juce::Colour kSilverLight    { 0xffe6ebf2 };
+    const juce::Colour kSilverMid      { 0xffaeb7c4 };
+    const juce::Colour kSilverDark     { 0xff555c68 };
+    const juce::Colour kCrispWhite     { 0xfff7f9fc };
     const juce::Colour kNeonTurquoise  { 0xff00f5d4 };
-
-    void drawNeonTrace(juce::Graphics& g, const juce::Path& path,
-                       juce::Colour startCol, juce::Colour endCol,
-                       float x1, float x2, float strokeW = 1.45f) {
-        if (startCol == endCol) {
-            g.setColour(startCol.withAlpha(0.24f));
-            g.strokePath(path, juce::PathStrokeType(strokeW + 3.2f, juce::PathStrokeType::mitered, juce::PathStrokeType::rounded));
-            g.setColour(startCol.withAlpha(0.92f));
-            g.strokePath(path, juce::PathStrokeType(strokeW, juce::PathStrokeType::mitered, juce::PathStrokeType::rounded));
-        } else {
-            juce::ColourGradient glowGrad(startCol.withAlpha(0.26f), x1, 0.0f, endCol.withAlpha(0.26f), x2, 0.0f, false);
-            g.setGradientFill(glowGrad);
-            g.strokePath(path, juce::PathStrokeType(strokeW + 3.4f, juce::PathStrokeType::mitered, juce::PathStrokeType::rounded));
-
-            juce::ColourGradient lineGrad(startCol.withAlpha(0.95f), x1, 0.0f, endCol.withAlpha(0.95f), x2, 0.0f, false);
-            g.setGradientFill(lineGrad);
-            g.strokePath(path, juce::PathStrokeType(strokeW, juce::PathStrokeType::mitered, juce::PathStrokeType::rounded));
-        }
-    }
-
-    void drawEurorackJack(juce::Graphics& g, float cx, float cy, juce::Colour neonCol) {
-        // Äußerer Neon-Leuchtring auf der Silberplatte
-        g.setColour(neonCol.withAlpha(0.28f));
-        g.fillEllipse(cx - 12.5f, cy - 12.5f, 25.0f, 25.0f);
-        g.setColour(neonCol.withAlpha(0.95f));
-        g.drawEllipse(cx - 9.8f, cy - 9.8f, 19.6f, 19.6f, 1.5f);
-
-        // Silberne Sechskantmutter
-        juce::Path hexNut;
-        for (int i = 0; i < 6; ++i) {
-            const float a = static_cast<float>(i) * juce::MathConstants<float>::pi / 3.0f;
-            const float px = cx + std::cos(a) * 8.2f;
-            const float py = cy + std::sin(a) * 8.2f;
-            if (i == 0) hexNut.startNewSubPath(px, py);
-            else        hexNut.lineTo(px, py);
-        }
-        hexNut.closeSubPath();
-
-        juce::ColourGradient nutGrad(kSilverBright, cx - 7.0f, cy - 7.0f,
-                                     kSilverShadow, cx + 7.0f, cy + 7.0f, false);
-        g.setGradientFill(nutGrad);
-        g.fillPath(hexNut);
-        g.setColour(kEtchedInk.withAlpha(0.65f));
-        g.strokePath(hexNut, juce::PathStrokeType(0.8f));
-
-        // Chrom-Kragen & schwarze 3,5-mm-Klinkenöffnung
-        g.setColour(kSilverBright);
-        g.fillEllipse(cx - 5.4f, cy - 5.4f, 10.8f, 10.8f);
-        g.setColour(kRailBlack);
-        g.fillEllipse(cx - 3.6f, cy - 3.6f, 7.2f, 7.2f);
-    }
-
-    void drawHexScrew(juce::Graphics& g, float cx, float cy) {
-        g.setColour(juce::Colours::black.withAlpha(0.45f));
-        g.fillEllipse(cx - 6.0f, cy - 5.0f, 12.5f, 12.5f);
-
-        juce::ColourGradient screwGrad(juce::Colour(0xff2c313b), cx - 5.0f, cy - 5.0f,
-                                       kRailBlack,               cx + 5.0f, cy + 5.0f, false);
-        g.setGradientFill(screwGrad);
-        g.fillEllipse(cx - 5.8f, cy - 5.8f, 11.6f, 11.6f);
-
-        g.setColour(kSilverShadow.withAlpha(0.65f));
-        g.drawEllipse(cx - 5.8f, cy - 5.8f, 11.6f, 11.6f, 0.9f);
-
-        // Innensechskant
-        juce::Path hex;
-        for (int i = 0; i < 6; ++i) {
-            const float a = static_cast<float>(i) * juce::MathConstants<float>::pi / 3.0f;
-            const float px = cx + std::cos(a) * 2.8f;
-            const float py = cy + std::sin(a) * 2.8f;
-            if (i == 0) hex.startNewSubPath(px, py);
-            else        hex.lineTo(px, py);
-        }
-        hex.closeSubPath();
-        g.setColour(juce::Colour(0xff07080a));
-        g.fillPath(hex);
-    }
+    const juce::Colour kNeonPink       { 0xffff2a85 };
 }
 
 MoggLookAndFeel::MoggLookAndFeel() {
-    setColour(juce::PopupMenu::backgroundColourId, kOledDark);
+    setColour(juce::PopupMenu::backgroundColourId, kPanelDark);
     setColour(juce::PopupMenu::textColourId, kCrispWhite);
-    setColour(juce::PopupMenu::highlightedBackgroundColourId, kNeonTurquoise.withAlpha(0.30f));
+    setColour(juce::PopupMenu::highlightedBackgroundColourId, kNeonTurquoise.withAlpha(0.28f));
     setColour(juce::PopupMenu::highlightedTextColourId, kCrispWhite);
 }
 
@@ -110,78 +25,77 @@ void MoggLookAndFeel::drawRotarySlider(juce::Graphics& g, int x, int y, int widt
                                        float sliderPosProportional, float rotaryStartAngle,
                                        float rotaryEndAngle, juce::Slider& slider) {
     const auto bounds  = juce::Rectangle<float>(static_cast<float>(x), static_cast<float>(y),
-                                                static_cast<float>(width), static_cast<float>(height)).reduced(3.0f);
+                                                static_cast<float>(width), static_cast<float>(height)).reduced(4.0f);
     const float radius = std::min(bounds.getWidth(), bounds.getHeight()) * 0.5f;
     const auto centre  = bounds.getCentre();
     const float angle  = rotaryStartAngle + sliderPosProportional * (rotaryEndAngle - rotaryStartAngle);
 
-    const auto accent    = slider.findColour(juce::Slider::rotarySliderFillColourId);
-    const int knobStyle  = static_cast<int>(slider.getProperties().getWithDefault("knobStyle", kKnobBlackMetal));
-    const bool isHero    = (knobStyle == kKnobHeroDual);
-    const bool isFrosted = (knobStyle == kKnobFrosted);
+    const auto accent   = slider.findColour(juce::Slider::rotarySliderFillColourId);
+    const bool dualNeon = static_cast<bool>(slider.getProperties().getWithDefault("dualNeon", false));
 
-    // 1. Feiner Skalenkranz für den zentralen Hero-Regler (wie im Foto)
-    if (isHero) {
-        const float tickOuter = radius - 1.0f;
-        const float tickInner = radius - 5.5f;
-        constexpr int numTicks = 44;
-        for (int i = 0; i <= numTicks; ++i) {
-            const float t = static_cast<float>(i) / static_cast<float>(numTicks);
-            const float a = rotaryStartAngle + t * (rotaryEndAngle - rotaryStartAngle);
-            const auto tickCol = kNeonPink.interpolatedWith(kNeonTurquoise, t);
-            g.setColour(tickCol.withAlpha(t <= sliderPosProportional + 0.01f ? 0.90f : 0.35f));
-            g.drawLine(centre.x + std::sin(a) * tickInner,
-                       centre.y - std::cos(a) * tickInner,
-                       centre.x + std::sin(a) * tickOuter,
-                       centre.y - std::cos(a) * tickOuter,
-                       1.1f);
-        }
+    // 1. Klassische Moog-Skalenstriche (11 Ticks rund um den Regler)
+    const float tickOuter = radius - 1.0f;
+    const float tickInner = radius - 6.0f;
+    for (int i = 0; i <= 10; ++i) {
+        const float t = static_cast<float>(i) / 10.0f;
+        const float a = rotaryStartAngle + t * (rotaryEndAngle - rotaryStartAngle);
+        const bool isMajor = (i == 0 || i == 5 || i == 10);
+
+        const float sinA = std::sin(a);
+        const float cosA = -std::cos(a);
+
+        g.setColour(isMajor ? kCrispWhite.withAlpha(0.85f) : kSilverMid.withAlpha(0.45f));
+        g.drawLine(centre.x + sinA * (isMajor ? tickInner - 1.5f : tickInner),
+                   centre.y + cosA * (isMajor ? tickInner - 1.5f : tickInner),
+                   centre.x + sinA * tickOuter,
+                   centre.y + cosA * tickOuter,
+                   isMajor ? 1.5f : 1.0f);
     }
 
-    // 2. Leuchtender Neon-Bogen auf der Silberplatte um den Reglerfuß
-    const float arcRadius = radius - (isHero ? 8.5f : 4.5f);
+    // 2. Hintergrund-Bogen & leuchtender Neon-Wertbogen
+    const float arcRadius = radius - 9.5f;
     juce::Path bgArc;
     bgArc.addCentredArc(centre.x, centre.y, arcRadius, arcRadius, 0.0f, rotaryStartAngle, rotaryEndAngle, true);
-    g.setColour(kEtchedInk.withAlpha(0.28f));
-    g.strokePath(bgArc, juce::PathStrokeType(2.4f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+    g.setColour(kRecessBlack);
+    g.strokePath(bgArc, juce::PathStrokeType(3.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
     if (sliderPosProportional > 0.001f) {
         juce::Path valArc;
         valArc.addCentredArc(centre.x, centre.y, arcRadius, arcRadius, 0.0f, rotaryStartAngle, angle, true);
 
-        if (isHero) {
-            juce::ColourGradient glowGrad(kNeonPink.withAlpha(0.32f), bounds.getX(), centre.y,
-                                          kNeonTurquoise.withAlpha(0.32f), bounds.getRight(), centre.y, false);
-            g.setGradientFill(glowGrad);
-            g.strokePath(valArc, juce::PathStrokeType(7.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-
-            juce::ColourGradient arcGrad(kNeonPink, bounds.getX(), centre.y,
-                                         kNeonTurquoise, bounds.getRight(), centre.y, false);
-            g.setGradientFill(arcGrad);
-            g.strokePath(valArc, juce::PathStrokeType(3.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+        if (dualNeon) {
+            juce::ColourGradient grad(kNeonPink,      bounds.getX(), centre.y,
+                                      kNeonTurquoise, bounds.getRight(), centre.y, false);
+            g.setGradientFill(grad);
         } else {
-            g.setColour(accent.withAlpha(0.28f));
-            g.strokePath(valArc, juce::PathStrokeType(6.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+            g.setColour(accent.withAlpha(0.24f));
+            g.strokePath(valArc, juce::PathStrokeType(7.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
             g.setColour(accent);
-            g.strokePath(valArc, juce::PathStrokeType(2.6f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
         }
+        g.strokePath(valArc, juce::PathStrokeType(3.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
     }
 
-    // 3. Reglerkörper & weicher Schlagschatten nach unten rechts
-    const float bodyRadius = radius - (isHero ? 13.5f : 8.5f);
-    if (bodyRadius <= 6.0f) return;
+    // 3. Äußerer gebürsteter Silber-Sockel (Moog Skirt)
+    const float skirtRadius = radius - 14.0f;
+    if (skirtRadius <= 6.0f) return;
 
-    g.setColour(juce::Colours::black.withAlpha(0.45f));
-    g.fillEllipse(centre.x - bodyRadius + 2.5f, centre.y - bodyRadius + 4.0f, bodyRadius * 2.0f, bodyRadius * 2.0f);
+    g.setColour(juce::Colours::black.withAlpha(0.65f));
+    g.fillEllipse(centre.x - skirtRadius + 1.5f, centre.y - skirtRadius + 3.0f, skirtRadius * 2.0f, skirtRadius * 2.0f);
 
-    // Geriffelter Außenumfang
-    constexpr int numFlutes = 20;
+    juce::ColourGradient skirtGrad(kSilverLight, centre.x - skirtRadius, centre.y - skirtRadius,
+                                   kSilverDark,  centre.x + skirtRadius, centre.y + skirtRadius, false);
+    g.setGradientFill(skirtGrad);
+    g.fillEllipse(centre.x - skirtRadius, centre.y - skirtRadius, skirtRadius * 2.0f, skirtRadius * 2.0f);
+
+    // 4. Geriffelter schwarzer Moog-Drehkörper
+    const float bodyRadius = skirtRadius * 0.86f;
+    constexpr int numFlutes = 18;
     juce::Path flutedBody;
     const int steps = numFlutes * 4;
     for (int i = 0; i <= steps; ++i) {
         const float theta = (static_cast<float>(i) / static_cast<float>(steps)) * juce::MathConstants<float>::twoPi + angle;
         const float fluteWave = std::cos(static_cast<float>(numFlutes) * (theta - angle));
-        const float r = bodyRadius - (0.75f * (1.0f - fluteWave));
+        const float r = bodyRadius - (0.65f * (1.0f - fluteWave));
         const float px = centre.x + std::sin(theta) * r;
         const float py = centre.y - std::cos(theta) * r;
         if (i == 0) flutedBody.startNewSubPath(px, py);
@@ -189,103 +103,42 @@ void MoggLookAndFeel::drawRotarySlider(juce::Graphics& g, int x, int y, int widt
     }
     flutedBody.closeSubPath();
 
-    const float capRadius = bodyRadius * 0.76f;
+    juce::ColourGradient bodyGrad(juce::Colour(0xff252830), centre.x - bodyRadius * 0.5f, centre.y - bodyRadius * 0.5f,
+                                  juce::Colour(0xff0b0c0e), centre.x + bodyRadius * 0.7f, centre.y + bodyRadius * 0.7f, true);
+    g.setGradientFill(bodyGrad);
+    g.fillPath(flutedBody);
 
-    if (isFrosted) {
-        // Gefrosteter transparenter Polycarbonat-Regler (wie unten rechts im Bild)
-        g.setColour(accent.withAlpha(0.25f));
-        g.fillEllipse(centre.x - bodyRadius - 1.5f, centre.y - bodyRadius - 1.5f, (bodyRadius + 1.5f) * 2.0f, (bodyRadius + 1.5f) * 2.0f);
+    g.setColour(kSilverDark.withAlpha(0.6f));
+    g.strokePath(flutedBody, juce::PathStrokeType(0.9f));
 
-        juce::ColourGradient frostGrad(juce::Colour(0xdde6ecf5), centre.x - bodyRadius * 0.6f, centre.y - bodyRadius * 0.6f,
-                                       juce::Colour(0xbb8e99aa), centre.x + bodyRadius * 0.8f, centre.y + bodyRadius * 0.8f, false);
-        g.setGradientFill(frostGrad);
-        g.fillPath(flutedBody);
+    // 5. Klassische Moog-Silberkappe in der Mitte
+    const float capRadius = bodyRadius * 0.62f;
+    juce::ColourGradient capGrad(kCrispWhite, centre.x - capRadius * 0.65f, centre.y - capRadius * 0.65f,
+                                 kSilverMid,  centre.x + capRadius * 0.75f, centre.y + capRadius * 0.75f, false);
+    g.setGradientFill(capGrad);
+    g.fillEllipse(centre.x - capRadius, centre.y - capRadius, capRadius * 2.0f, capRadius * 2.0f);
 
-        g.setColour(kCrispWhite.withAlpha(0.65f));
-        g.strokePath(flutedBody, juce::PathStrokeType(0.9f));
+    g.setColour(kSilverDark);
+    g.drawEllipse(centre.x - capRadius, centre.y - capRadius, capRadius * 2.0f, capRadius * 2.0f, 1.0f);
 
-        // Innerer Neon-Kern schimmert durch die Kappe
-        juce::ColourGradient coreGlow(accent.withAlpha(0.45f), centre.x, centre.y,
-                                      juce::Colour(0xcc9ba6b8), centre.x + capRadius, centre.y + capRadius, true);
-        g.setGradientFill(coreGlow);
-        g.fillEllipse(centre.x - capRadius, centre.y - capRadius, capRadius * 2.0f, capRadius * 2.0f);
-
-        g.setColour(accent.withAlpha(0.9f));
-        g.drawEllipse(centre.x - capRadius, centre.y - capRadius, capRadius * 2.0f, capRadius * 2.0f, 1.4f);
-    } else {
-        // Schwarzer eloxierter Metallregler
-        juce::ColourGradient bodyGrad(juce::Colour(0xff2a2e38), centre.x - bodyRadius * 0.6f, centre.y - bodyRadius * 0.6f,
-                                      juce::Colour(0xff0a0b0e), centre.x + bodyRadius * 0.7f, centre.y + bodyRadius * 0.7f, true);
-        g.setGradientFill(bodyGrad);
-        g.fillPath(flutedBody);
-
-        // Dezenter Neon-Schimmer an den Riffel-Flanken
-        if (isHero) {
-            juce::ColourGradient flankGrad(kNeonPink.withAlpha(0.35f), centre.x - bodyRadius, centre.y,
-                                           kNeonTurquoise.withAlpha(0.35f), centre.x + bodyRadius, centre.y, false);
-            g.setGradientFill(flankGrad);
-        } else {
-            g.setColour(accent.withAlpha(0.28f));
-        }
-        g.strokePath(flutedBody, juce::PathStrokeType(1.0f));
-
-        // Dunkel eloxierte Metallkappe mit konischem Lichtreflex (Bowtie-Sheen)
-        juce::ColourGradient capBase(juce::Colour(0xff232730), centre.x - capRadius, centre.y - capRadius,
-                                     juce::Colour(0xff101217), centre.x + capRadius, centre.y + capRadius, false);
-        g.setGradientFill(capBase);
-        g.fillEllipse(centre.x - capRadius, centre.y - capRadius, capRadius * 2.0f, capRadius * 2.0f);
-
-        {
-            juce::Graphics::ScopedSaveState state(g);
-            juce::Path capClip;
-            capClip.addEllipse(centre.x - capRadius, centre.y - capRadius, capRadius * 2.0f, capRadius * 2.0f);
-            g.reduceClipRegion(capClip);
-
-            // Zwei gegenüberliegende Lichtkeile für den gedrehten Metall-Effekt
-            juce::Path sheen1, sheen2;
-            sheen1.startNewSubPath(centre.x, centre.y);
-            sheen1.lineTo(centre.x - capRadius * 1.1f, centre.y - capRadius * 0.45f);
-            sheen1.lineTo(centre.x - capRadius * 0.45f, centre.y - capRadius * 1.1f);
-            sheen1.closeSubPath();
-
-            sheen2.startNewSubPath(centre.x, centre.y);
-            sheen2.lineTo(centre.x + capRadius * 1.1f, centre.y + capRadius * 0.45f);
-            sheen2.lineTo(centre.x + capRadius * 0.45f, centre.y + capRadius * 1.1f);
-            sheen2.closeSubPath();
-
-            g.setColour(kCrispWhite.withAlpha(0.14f));
-            g.fillPath(sheen1);
-            g.fillPath(sheen2);
-        }
-
-        // Leuchtender Neon-Kantenring auf der Oberseite der Kappe (Pink/Türkis-Verlauf beim Hero-Regler)
-        if (isHero) {
-            juce::ColourGradient rimGlow(kNeonPink.withAlpha(0.35f), centre.x - capRadius, centre.y,
-                                         kNeonTurquoise.withAlpha(0.35f), centre.x + capRadius, centre.y, false);
-            g.setGradientFill(rimGlow);
-            g.drawEllipse(centre.x - capRadius, centre.y - capRadius, capRadius * 2.0f, capRadius * 2.0f, 3.6f);
-
-            juce::ColourGradient rimGrad(kNeonPink, centre.x - capRadius, centre.y,
-                                         kNeonTurquoise, centre.x + capRadius, centre.y, false);
-            g.setGradientFill(rimGrad);
-            g.drawEllipse(centre.x - capRadius, centre.y - capRadius, capRadius * 2.0f, capRadius * 2.0f, 1.8f);
-        } else {
-            g.setColour(accent.withAlpha(0.30f));
-            g.drawEllipse(centre.x - capRadius, centre.y - capRadius, capRadius * 2.0f, capRadius * 2.0f, 3.2f);
-            g.setColour(accent);
-            g.drawEllipse(centre.x - capRadius, centre.y - capRadius, capRadius * 2.0f, capRadius * 2.0f, 1.5f);
-        }
-    }
-
-    // 4. Weißer Zeigerstrich auf der Kappe
+    // 6. Kontrastreicher Zeigerstrich (Moog Pointer)
     const float sinPtr = std::sin(angle);
     const float cosPtr = -std::cos(angle);
-    g.setColour(kCrispWhite);
+    const auto activePtrColour = dualNeon ? kNeonTurquoise : (accent == kSilverLight ? kChassisBlack : accent);
+
+    g.setColour(kChassisBlack);
+    g.drawLine(centre.x + sinPtr * (capRadius * 0.22f),
+               centre.y + cosPtr * (capRadius * 0.22f),
+               centre.x + sinPtr * (skirtRadius - 0.8f),
+               centre.y + cosPtr * (skirtRadius - 0.8f),
+               2.6f);
+
+    g.setColour(activePtrColour == kChassisBlack ? kCrispWhite : activePtrColour);
     g.drawLine(centre.x + sinPtr * (capRadius * 0.25f),
                centre.y + cosPtr * (capRadius * 0.25f),
-               centre.x + sinPtr * (capRadius * 0.96f),
-               centre.y + cosPtr * (capRadius * 0.96f),
-               isHero ? 2.0f : 1.6f);
+               centre.x + sinPtr * (skirtRadius - 1.2f),
+               centre.y + cosPtr * (skirtRadius - 1.2f),
+               1.5f);
 }
 
 void MoggLookAndFeel::drawButtonBackground(juce::Graphics& g, juce::Button& button,
@@ -295,35 +148,36 @@ void MoggLookAndFeel::drawButtonBackground(juce::Graphics& g, juce::Button& butt
     auto bounds = button.getLocalBounds().toFloat().reduced(0.5f);
     const bool isOn = button.getToggleState();
 
+    // Links Neon-Pink (6 dB / 12 dB), rechts Neon-Türkis (24 dB / 48 dB)
     juce::Colour onColour = kNeonPink;
     if (button.getButtonText() == "24 dB" || button.getButtonText() == "48 dB") {
         onColour = kNeonTurquoise;
     }
 
     if (isOn) {
-        g.setColour(onColour.withAlpha(0.28f));
+        g.setColour(onColour.withAlpha(0.22f));
         g.fillRoundedRectangle(bounds.expanded(1.5f), 4.0f);
 
-        juce::ColourGradient btnGrad(onColour.brighter(0.12f), bounds.getX(), bounds.getY(),
-                                     onColour.darker(0.12f),   bounds.getX(), bounds.getBottom(), false);
+        juce::ColourGradient btnGrad(onColour.brighter(0.15f), bounds.getX(), bounds.getY(),
+                                     onColour.darker(0.15f),   bounds.getX(), bounds.getBottom(), false);
         g.setGradientFill(btnGrad);
-        g.fillRoundedRectangle(bounds, 3.5f);
+        g.fillRoundedRectangle(bounds, 3.0f);
 
-        g.setColour(kCrispWhite.withAlpha(0.9f));
-        g.drawRoundedRectangle(bounds, 3.5f, 1.0f);
+        g.setColour(kCrispWhite.withAlpha(0.85f));
+        g.drawRoundedRectangle(bounds, 3.0f, 1.0f);
     } else {
-        g.setColour(shouldDrawButtonAsHighlighted ? juce::Colour(0xff232730) : kOledDark);
-        g.fillRoundedRectangle(bounds, 3.5f);
+        g.setColour(shouldDrawButtonAsHighlighted ? juce::Colour(0xff20242c) : kRecessBlack);
+        g.fillRoundedRectangle(bounds, 3.0f);
 
-        g.setColour(kEtchedInk.withAlpha(0.85f));
-        g.drawRoundedRectangle(bounds, 3.5f, 1.1f);
+        g.setColour(kSilverDark.withAlpha(0.75f));
+        g.drawRoundedRectangle(bounds, 3.0f, 1.0f);
     }
 }
 
 void MoggLookAndFeel::drawButtonText(juce::Graphics& g, juce::TextButton& button,
                                      bool, bool) {
-    g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
-    g.setColour(button.getToggleState() ? kRailBlack : kSilverBright);
+    g.setFont(juce::FontOptions(11.5f, juce::Font::bold));
+    g.setColour(button.getToggleState() ? kChassisBlack : kSilverLight);
     g.drawText(button.getButtonText(), button.getLocalBounds(), juce::Justification::centred, false);
 }
 
@@ -332,31 +186,32 @@ void MoggLookAndFeel::drawToggleButton(juce::Graphics& g, juce::ToggleButton& bu
     auto bounds = button.getLocalBounds().toFloat().reduced(1.0f);
     const bool isOn = button.getToggleState();
 
-    g.setColour(isOn ? juce::Colour(0xff161920) : (shouldDrawButtonAsHighlighted ? juce::Colour(0xff1d2129) : kOledDark));
+    g.setColour(isOn ? juce::Colour(0xff1b1f27) : (shouldDrawButtonAsHighlighted ? juce::Colour(0xff191c22) : kRecessBlack));
     g.fillRoundedRectangle(bounds, 4.0f);
 
     if (isOn) {
-        juce::ColourGradient borderGrad(kNeonPink, bounds.getX(), bounds.getY(),
+        juce::ColourGradient borderGrad(kNeonPink,      bounds.getX(), bounds.getY(),
                                         kNeonTurquoise, bounds.getRight(), bounds.getBottom(), false);
         g.setGradientFill(borderGrad);
-        g.drawRoundedRectangle(bounds, 4.0f, 1.5f);
+        g.drawRoundedRectangle(bounds, 4.0f, 1.4f);
     } else {
-        g.setColour(kEtchedInk.withAlpha(0.85f));
-        g.drawRoundedRectangle(bounds, 4.0f, 1.1f);
+        g.setColour(kSilverDark.withAlpha(0.8f));
+        g.drawRoundedRectangle(bounds, 4.0f, 1.0f);
     }
 
+    // LED-Statuspunkt links im Schalter (passend zur rechten Seite in Neon-Türkis)
     auto ledArea = bounds.removeFromLeft(22.0f).withSizeKeepingCentre(8.0f, 8.0f);
     if (isOn) {
-        g.setColour(kNeonTurquoise.withAlpha(0.38f));
+        g.setColour(kNeonTurquoise.withAlpha(0.35f));
         g.fillEllipse(ledArea.expanded(3.0f));
         g.setColour(kNeonTurquoise);
     } else {
-        g.setColour(kSilverShadow);
+        g.setColour(kSilverDark);
     }
     g.fillEllipse(ledArea);
 
-    g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
-    g.setColour(isOn ? kCrispWhite : kSilverBright);
+    g.setFont(juce::FontOptions(11.5f, juce::Font::bold));
+    g.setColour(isOn ? kCrispWhite : kSilverMid);
     g.drawText(button.getButtonText(), bounds.reduced(2.0f, 0.0f), juce::Justification::centredLeft, false);
 }
 
@@ -365,18 +220,19 @@ void MoggLookAndFeel::drawComboBox(juce::Graphics& g, int width, int height, boo
     auto bounds = juce::Rectangle<float>(0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height)).reduced(0.5f);
     const auto accent = box.findColour(juce::ComboBox::arrowColourId);
 
-    g.setColour(kOledDark);
+    g.setColour(kRecessBlack);
     g.fillRoundedRectangle(bounds, 3.5f);
 
-    g.setColour(accent.withAlpha(0.85f));
-    g.drawRoundedRectangle(bounds, 3.5f, 1.1f);
+    g.setColour(accent.withAlpha(0.75f));
+    g.drawRoundedRectangle(bounds, 3.5f, 1.0f);
 
-    const float arrowX = static_cast<float>(width) - 12.0f;
+    // Kleiner Pfeil rechts
+    const float arrowX = static_cast<float>(width) - 13.0f;
     const float arrowY = static_cast<float>(height) * 0.5f;
     juce::Path arrow;
-    arrow.addTriangle(arrowX - 3.2f, arrowY - 1.8f,
-                      arrowX + 3.2f, arrowY - 1.8f,
-                      arrowX,        arrowY + 2.4f);
+    arrow.addTriangle(arrowX - 3.5f, arrowY - 2.0f,
+                      arrowX + 3.5f, arrowY - 2.0f,
+                      arrowX,        arrowY + 2.5f);
     g.setColour(accent);
     g.fillPath(arrow);
 }
@@ -388,15 +244,15 @@ MoggDualLadderAudioProcessorEditor::MoggDualLadderAudioProcessorEditor(MoggDualL
 {
     setLookAndFeel(&moggLookAndFeel);
 
-    setupRotarySlider(inGainSlider,  inGainLabel,  "IN LEVEL",  kNeonPink,      kKnobBlackMetal);
-    setupRotarySlider(hpFreqSlider,  hpFreqLabel,  "HP CUTOFF", kNeonPink,      kKnobBlackMetal);
-    setupRotarySlider(hpResSlider,   hpResLabel,   "HP RES",    kNeonPink,      kKnobBlackMetal);
-    setupRotarySlider(hpSatSlider,   hpSatLabel,   "HP SAT",    kNeonPink,      kKnobFrosted);
-    setupRotarySlider(dirtSlider,    dirtLabel,    "DIRT",      kNeonTurquoise, kKnobHeroDual);
-    setupRotarySlider(lpFreqSlider,  lpFreqLabel,  "LP CUTOFF", kNeonTurquoise, kKnobBlackMetal);
-    setupRotarySlider(lpResSlider,   lpResLabel,   "LP RES",    kNeonTurquoise, kKnobBlackMetal);
-    setupRotarySlider(lpSatSlider,   lpSatLabel,   "LP SAT",    kNeonTurquoise, kKnobFrosted);
-    setupRotarySlider(outGainSlider, outGainLabel, "OUT LEVEL", kNeonTurquoise, kKnobBlackMetal);
+    setupRotarySlider(inGainSlider,  inGainLabel,  "IN LEVEL",  kSilverLight);
+    setupRotarySlider(hpFreqSlider,  hpFreqLabel,  "HP CUTOFF", kNeonPink);
+    setupRotarySlider(hpResSlider,   hpResLabel,   "HP RES",    kNeonPink);
+    setupRotarySlider(hpSatSlider,   hpSatLabel,   "HP SAT",    kNeonPink);
+    setupRotarySlider(dirtSlider,    dirtLabel,    "DIRT",      kNeonTurquoise, true);
+    setupRotarySlider(lpFreqSlider,  lpFreqLabel,  "LP CUTOFF", kNeonTurquoise);
+    setupRotarySlider(lpResSlider,   lpResLabel,   "LP RES",    kNeonTurquoise);
+    setupRotarySlider(lpSatSlider,   lpSatLabel,   "LP SAT",    kNeonTurquoise);
+    setupRotarySlider(outGainSlider, outGainLabel, "OUT LEVEL", kSilverLight);
 
     setupSatModeBox(hpSatModeBox, kNeonPink);
     setupSatModeBox(lpSatModeBox, kNeonTurquoise);
@@ -442,7 +298,7 @@ MoggDualLadderAudioProcessorEditor::MoggDualLadderAudioProcessorEditor(MoggDualL
     outGainAttachment   = std::make_unique<SliderAttachment>(audioProcessor.apvts, "outGain",   outGainSlider);
     linkAttachment      = std::make_unique<ButtonAttachment>(audioProcessor.apvts, "link",      linkButton);
 
-    setSize(1080, 354);
+    setSize(1060, 322);
 }
 
 MoggDualLadderAudioProcessorEditor::~MoggDualLadderAudioProcessorEditor() {
@@ -451,22 +307,21 @@ MoggDualLadderAudioProcessorEditor::~MoggDualLadderAudioProcessorEditor() {
 
 void MoggDualLadderAudioProcessorEditor::setupRotarySlider(juce::Slider& slider, juce::Label& label,
                                                            const juce::String& text, juce::Colour accent,
-                                                           int knobStyle) {
+                                                           bool dualNeon) {
     slider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
-    slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 78, 18);
+    slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 80, 19);
     slider.setColour(juce::Slider::rotarySliderFillColourId, accent);
-    slider.setColour(juce::Slider::textBoxBackgroundColourId, kOledDark);
-    slider.setColour(juce::Slider::textBoxOutlineColourId, accent.withAlpha(0.65f));
+    slider.setColour(juce::Slider::textBoxBackgroundColourId, kRecessBlack);
+    slider.setColour(juce::Slider::textBoxOutlineColourId, kSilverDark.withAlpha(0.65f));
     slider.setColour(juce::Slider::textBoxTextColourId, kCrispWhite);
     slider.setColour(juce::Slider::textBoxHighlightColourId, accent.withAlpha(0.35f));
-    slider.getProperties().set("knobStyle", knobStyle);
+    slider.getProperties().set("dualNeon", dualNeon);
     addAndMakeVisible(slider);
 
-    // Dunkel geätzte Frontplatten-Beschriftung auf gebürstetem Silber (wie im Foto)
     label.setText(text, juce::dontSendNotification);
     label.setJustificationType(juce::Justification::centred);
     label.setFont(juce::FontOptions(11.0f, juce::Font::bold));
-    label.setColour(juce::Label::textColourId, kEtchedInk);
+    label.setColour(juce::Label::textColourId, kSilverLight);
     addAndMakeVisible(label);
 }
 
@@ -476,205 +331,131 @@ void MoggDualLadderAudioProcessorEditor::setupSatModeBox(juce::ComboBox& box, ju
     box.addItem("FOLD",   3);
     box.addItem("GRIT",   4);
     box.setJustificationType(juce::Justification::centred);
-    box.setColour(juce::ComboBox::backgroundColourId, kOledDark);
+    box.setColour(juce::ComboBox::backgroundColourId, kRecessBlack);
     box.setColour(juce::ComboBox::textColourId, kCrispWhite);
-    box.setColour(juce::ComboBox::outlineColourId, accent.withAlpha(0.8f));
+    box.setColour(juce::ComboBox::outlineColourId, accent.withAlpha(0.75f));
     box.setColour(juce::ComboBox::arrowColourId, accent);
     addAndMakeVisible(box);
-}
-
-void MoggDualLadderAudioProcessorEditor::rebuildBrushedMetalTexture() {
-    const int w = getWidth();
-    const int h = getHeight();
-    if (w <= 0 || h <= 0) return;
-
-    brushedAluminumCache = juce::Image(juce::Image::ARGB, w, h, true);
-    juce::Graphics g(brushedAluminumCache);
-
-    // 1. Metallischer Grundverlauf (helles gebürstetes Silber mit diagonalem Lichtschimmer)
-    juce::ColourGradient baseMetal(kSilverBase,   0.0f, 0.0f,
-                                   kSilverShadow, static_cast<float>(w), static_cast<float>(h), false);
-    baseMetal.addColour(0.35, kSilverBright);
-    baseMetal.addColour(0.68, kSilverBase);
-    g.setGradientFill(baseMetal);
-    g.fillAll();
-
-    // 2. Feine horizontale Aluminium-Bürstung
-    juce::Random rng(424242);
-    for (int y = 0; y < h; ++y) {
-        const float streakAlpha = rng.nextFloat() * 0.045f;
-        g.setColour((rng.nextBool() ? kCrispWhite : kEtchedInk).withAlpha(streakAlpha));
-        g.drawHorizontalLine(y, 0.0f, static_cast<float>(w));
-    }
-
-    // 3. Subtile Vignette zu den Plattenrändern hin
-    juce::ColourGradient edgeVignette(juce::Colours::transparentBlack, static_cast<float>(w) * 0.5f, static_cast<float>(h) * 0.5f,
-                                      kEtchedInk.withAlpha(0.22f), 0.0f, 0.0f, true);
-    g.setGradientFill(edgeVignette);
-    g.fillAll();
 }
 
 void MoggDualLadderAudioProcessorEditor::paint(juce::Graphics& g) {
     const float w = static_cast<float>(getWidth());
     const float h = static_cast<float>(getHeight());
-    const float railW = 24.0f;
 
-    // 1. Gebürstete Silber-Frontplatte aus Cache zeichnen
-    if (brushedAluminumCache.isValid()) {
-        g.drawImageAt(brushedAluminumCache, 0, 0);
+    // 1. Gebürstete schwarze Moog-Frontplatte
+    juce::ColourGradient chassisGrad(juce::Colour(0xff16181e), 0.0f, 0.0f,
+                                     kChassisBlack,            0.0f, h, false);
+    g.setGradientFill(chassisGrad);
+    g.fillAll();
+
+    // Feine horizontale Metall-Bürstung
+    g.setColour(kCrispWhite.withAlpha(0.018f));
+    for (int y = 2; y < getHeight(); y += 3) {
+        g.drawHorizontalLine(y, 22.0f, w - 22.0f);
     }
 
-    // 2. Matte schwarze Eurorack-Seitenschienen links & rechts
-    auto drawSideRail = [&](float xPos, bool isLeft) {
-        juce::ColourGradient railGrad(juce::Colour(0xff1c2028), xPos, 0.0f,
-                                      kRailBlack,               xPos + railW, 0.0f, false);
-        g.setGradientFill(railGrad);
-        g.fillRect(xPos, 0.0f, railW, h);
+    // 2. Gebürstete Silber-Seitenteile (Rack-Cheeks) inkl. Moog-Sechskantschrauben
+    const float cheekW = 22.0f;
+    auto drawSilverCheek = [&](float xPos, bool isLeft) {
+        juce::ColourGradient metalGrad(kSilverLight, xPos, 0.0f,
+                                       kSilverMid,   xPos + cheekW, 0.0f, false);
+        g.setGradientFill(metalGrad);
+        g.fillRect(xPos, 0.0f, cheekW, h);
 
-        // Metallische Fase zur Silberplatte hin
-        g.setColour(kCrispWhite.withAlpha(0.55f));
-        g.drawVerticalLine(static_cast<int>(isLeft ? xPos + railW : xPos - 1.0f), 0.0f, h);
-        g.setColour(juce::Colours::black.withAlpha(0.75f));
-        g.drawVerticalLine(static_cast<int>(isLeft ? xPos + railW - 1.0f : xPos), 0.0f, h);
+        g.setColour(kCrispWhite.withAlpha(0.7f));
+        g.drawVerticalLine(static_cast<int>(isLeft ? xPos + cheekW - 1.0f : xPos), 0.0f, h);
+        g.setColour(kSilverDark);
+        g.drawVerticalLine(static_cast<int>(isLeft ? xPos : xPos + cheekW - 1.0f), 0.0f, h);
+
+        auto drawScrew = [&](float cy) {
+            const float cx = xPos + cheekW * 0.5f;
+            g.setColour(kSilverDark);
+            g.fillEllipse(cx - 5.0f, cy - 5.0f, 10.0f, 10.0f);
+            g.setColour(kSilverLight);
+            g.drawEllipse(cx - 5.0f, cy - 5.0f, 10.0f, 10.0f, 1.0f);
+            g.setColour(kChassisBlack);
+            g.drawLine(cx - 2.6f, cy - 2.6f, cx + 2.6f, cy + 2.6f, 1.3f);
+            g.drawLine(cx - 2.6f, cy + 2.6f, cx + 2.6f, cy - 2.6f, 1.3f);
+        };
+        drawScrew(22.0f);
+        drawScrew(h - 22.0f);
     };
-    drawSideRail(0.0f, true);
-    drawSideRail(w - railW, false);
 
-    // 3. Äußere Silber-Fase & 4 dunkle Eurorack-Sechskantschrauben in den Ecken
-    auto plate = juce::Rectangle<float>(railW + 2.0f, 2.0f, w - (railW + 2.0f) * 2.0f, h - 4.0f);
-    g.setColour(kCrispWhite.withAlpha(0.55f));
-    g.drawRoundedRectangle(plate, 3.0f, 1.0f);
+    drawSilverCheek(0.0f, true);
+    drawSilverCheek(w - cheekW, false);
 
-    drawHexScrew(g, plate.getX() + 14.0f,     16.0f);
-    drawHexScrew(g, plate.getRight() - 14.0f, 16.0f);
-    drawHexScrew(g, plate.getX() + 14.0f,     h - 16.0f);
-    drawHexScrew(g, plate.getRight() - 14.0f, h - 16.0f);
+    // 3. Äußerer weiß/silberner Siebdruck-Rahmen auf der Frontplatte
+    auto faceplate = juce::Rectangle<float>(cheekW + 10.0f, 10.0f, w - (cheekW + 10.0f) * 2.0f, h - 20.0f);
+    g.setColour(kPanelDark.withAlpha(0.75f));
+    g.fillRoundedRectangle(faceplate, 6.0f);
+    g.setColour(kSilverMid.withAlpha(0.45f));
+    g.drawRoundedRectangle(faceplate, 6.0f, 1.2f);
 
-    // 4. Geätzte 45°-Leiterbahnen (Links Neon-Pink, Mitte Pink->Türkis, Rechts Neon-Türkis)
-    const float leftEdge  = plate.getX() + 6.0f;
-    const float rightEdge = plate.getRight() - 6.0f;
-    const float midX      = w * 0.5f;
+    // 4. Moog-inspirierte Kopfzeile & Neon-Zierlinie (Links Pink, Rechts Türkis)
+    const float headerLeft  = faceplate.getX() + 14.0f;
+    const float headerRight = faceplate.getRight() - 14.0f;
 
-    // Linke Leiterbahnen (Neon-Pink)
-    juce::Path leftTraces;
-    leftTraces.startNewSubPath(leftEdge, 58.0f);
-    leftTraces.lineTo(leftEdge + 115.0f, 58.0f);
-    leftTraces.lineTo(leftEdge + 145.0f, 88.0f);
-    leftTraces.lineTo(leftEdge + 265.0f, 88.0f);
+    g.setColour(kCrispWhite);
+    g.setFont(juce::FontOptions(21.0f, juce::Font::bold));
+    g.drawText("MOGG", static_cast<int>(headerLeft), 16, 86, 26, juce::Justification::left);
 
-    leftTraces.startNewSubPath(leftEdge, 72.0f);
-    leftTraces.lineTo(leftEdge + 95.0f, 72.0f);
-    leftTraces.lineTo(leftEdge + 125.0f, 102.0f);
-    leftTraces.lineTo(leftEdge + 240.0f, 102.0f);
+    g.setColour(kSilverLight);
+    g.setFont(juce::FontOptions(13.0f, juce::Font::bold));
+    g.drawText("DUAL LADDER", static_cast<int>(headerLeft + 76.0f), 20, 150, 20, juce::Justification::left);
 
-    leftTraces.startNewSubPath(leftEdge, 148.0f);
-    leftTraces.lineTo(leftEdge + 45.0f, 148.0f);
-    leftTraces.lineTo(leftEdge + 72.0f, 175.0f);
-    leftTraces.lineTo(leftEdge + 72.0f, 290.0f);
-    leftTraces.lineTo(leftEdge + 98.0f, 316.0f);
+    const float lineY = 48.0f;
+    const float midX  = w * 0.5f;
+    g.setColour(kNeonPink);
+    g.fillRect(headerLeft, lineY, midX - headerLeft, 1.8f);
+    g.setColour(kNeonTurquoise);
+    g.fillRect(midX, lineY, headerRight - midX, 1.8f);
 
-    leftTraces.startNewSubPath(leftEdge + 185.0f, 286.0f);
-    leftTraces.lineTo(leftEdge + 215.0f, 316.0f);
-    leftTraces.lineTo(midX - 55.0f, 316.0f);
+    // 5. Klassische weiße Moog-Sektionsrahmen & Titel über den 5 Modulen
+    auto deck = faceplate.reduced(10.0f, 0.0f);
+    deck.setTop(56.0f);
+    deck.setBottom(faceplate.getBottom() - 8.0f);
 
-    drawNeonTrace(g, leftTraces, kNeonPink, kNeonPink, leftEdge, midX);
+    const float colW = deck.getWidth() / 9.0f;
 
-    // Rechte Leiterbahnen (Neon-Türkis)
-    juce::Path rightTraces;
-    rightTraces.startNewSubPath(rightEdge, 58.0f);
-    rightTraces.lineTo(rightEdge - 115.0f, 58.0f);
-    rightTraces.lineTo(rightEdge - 145.0f, 88.0f);
-    rightTraces.lineTo(rightEdge - 265.0f, 88.0f);
+    auto drawModuleFrame = [&](int startCol, int numCols, const juce::String& title, juce::Colour titleAccent) {
+        auto modRect = juce::Rectangle<float>(deck.getX() + colW * static_cast<float>(startCol) + 3.0f,
+                                              deck.getY(),
+                                              colW * static_cast<float>(numCols) - 6.0f,
+                                              deck.getHeight());
 
-    rightTraces.startNewSubPath(rightEdge, 72.0f);
-    rightTraces.lineTo(rightEdge - 95.0f, 72.0f);
-    rightTraces.lineTo(rightEdge - 125.0f, 102.0f);
-    rightTraces.lineTo(rightEdge - 240.0f, 102.0f);
+        g.setColour(kChassisBlack.withAlpha(0.55f));
+        g.fillRoundedRectangle(modRect, 5.0f);
 
-    rightTraces.startNewSubPath(rightEdge, 148.0f);
-    rightTraces.lineTo(rightEdge - 45.0f, 148.0f);
-    rightTraces.lineTo(rightEdge - 72.0f, 175.0f);
-    rightTraces.lineTo(rightEdge - 72.0f, 290.0f);
-    rightTraces.lineTo(rightEdge - 98.0f, 316.0f);
+        g.setColour(kCrispWhite.withAlpha(0.28f));
+        g.drawRoundedRectangle(modRect, 5.0f, 1.0f);
 
-    rightTraces.startNewSubPath(rightEdge - 185.0f, 286.0f);
-    rightTraces.lineTo(rightEdge - 215.0f, 316.0f);
-    rightTraces.lineTo(midX + 55.0f, 316.0f);
+        auto banner = modRect.removeFromTop(18.0f);
+        g.setColour(titleAccent.withAlpha(0.16f));
+        g.fillRoundedRectangle(banner.reduced(1.0f, 1.0f), 4.0f);
 
-    drawNeonTrace(g, rightTraces, kNeonTurquoise, kNeonTurquoise, midX, rightEdge);
-
-    // Zentrale Verbindungs-Leiterbahn mit Pink -> Türkis Verlauf
-    juce::Path centerTraces;
-    centerTraces.startNewSubPath(midX - 185.0f, 118.0f);
-    centerTraces.lineTo(midX - 85.0f, 118.0f);
-    centerTraces.lineTo(midX - 55.0f, 92.0f);
-    centerTraces.lineTo(midX + 55.0f, 92.0f);
-    centerTraces.lineTo(midX + 85.0f, 118.0f);
-    centerTraces.lineTo(midX + 185.0f, 118.0f);
-
-    centerTraces.startNewSubPath(midX - 55.0f, 316.0f);
-    centerTraces.lineTo(midX + 55.0f, 316.0f);
-
-    drawNeonTrace(g, centerTraces, kNeonPink, kNeonTurquoise, midX - 185.0f, midX + 185.0f, 1.6f);
-
-    // 5. Geätztes "MOGG DUAL LADDER" Logo oben links (wie in der Eurorack-Vorlage)
-    const int logoX = static_cast<int>(plate.getX() + 34.0f);
-    g.setColour(kNeonPink.withAlpha(0.28f));
-    g.setFont(juce::FontOptions(23.0f, juce::Font::bold));
-    g.drawText("MOGG", logoX + 1, 11, 100, 24, juce::Justification::left);
-
-    g.setColour(kEtchedInk);
-    g.drawText("MOGG", logoX, 10, 100, 24, juce::Justification::left);
-
-    g.setColour(kEtchedInk.withAlpha(0.85f));
-    g.setFont(juce::FontOptions(10.5f, juce::Font::bold));
-    g.drawText("DUAL LADDER", logoX + 2, 32, 130, 14, juce::Justification::left);
-
-    // 6. Vertikale 12-Segment Neon-LED-Anzeige rechts (Pink unten -> Türkis oben, wie im Foto)
-    const float ledX = plate.getRight() - 22.0f;
-    const float ledTop = 102.0f;
-    constexpr int numLeds = 12;
-    for (int i = 0; i < numLeds; ++i) {
-        const float t = static_cast<float>(i) / static_cast<float>(numLeds - 1);
-        const auto ledCol = kNeonTurquoise.interpolatedWith(kNeonPink, t);
-        const float ly = ledTop + static_cast<float>(i) * 14.0f;
-        auto seg = juce::Rectangle<float>(ledX, ly, 8.5f, 10.0f);
-
-        g.setColour(ledCol.withAlpha(0.26f));
-        g.fillRoundedRectangle(seg.expanded(1.5f), 2.0f);
-
-        g.setColour(ledCol.withAlpha(0.85f));
-        g.fillRoundedRectangle(seg, 1.5f);
-
-        g.setColour(kEtchedInk.withAlpha(0.55f));
-        g.drawRoundedRectangle(seg, 1.5f, 0.8f);
-    }
-
-    // 7. Dekorative 3,5-mm-Eurorack-Patchbuchsen entlang der unteren Kante
-    const float jackY = h - 22.0f;
-    const std::array<float, 10> jackOffsets {
-        -420.0f, -330.0f, -240.0f, -150.0f, -60.0f,
-          60.0f,  150.0f,  240.0f,  330.0f, 420.0f
+        g.setColour(titleAccent);
+        g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
+        g.drawText(title, banner.toNearestInt(), juce::Justification::centred, false);
     };
-    for (size_t i = 0; i < jackOffsets.size(); ++i) {
-        const auto col = (i < 5) ? kNeonPink : kNeonTurquoise;
-        drawEurorackJack(g, midX + jackOffsets[i], jackY, col);
-    }
+
+    drawModuleFrame(0, 1, "INPUT",    kSilverLight);
+    drawModuleFrame(1, 3, "HIGHPASS", kNeonPink);
+    drawModuleFrame(4, 1, "MOD",      kCrispWhite);
+    drawModuleFrame(5, 3, "LOWPASS",  kNeonTurquoise);
+    drawModuleFrame(8, 1, "OUTPUT",   kSilverLight);
 }
 
 void MoggDualLadderAudioProcessorEditor::resized() {
-    rebuildBrushedMetalTexture();
+    const int cheekW = 22;
+    auto faceplate = getLocalBounds().reduced(cheekW + 10, 10);
 
-    const int railW = 24;
-    auto plate = getLocalBounds().reduced(railW + 2, 2);
+    // Kopfzeile: Slope-Taster mittig, LINK FREQ rechts
+    auto topBar = faceplate.reduced(14, 0).removeFromTop(38);
+    topBar.removeFromTop(6);
 
-    // Kopfzeile: Slope-Taster mittig, LINK FREQ rechts vor der Eckschraube
-    auto topBar = plate.reduced(34, 0).removeFromTop(42);
-    topBar.removeFromTop(8);
+    linkButton.setBounds(topBar.removeFromRight(114).reduced(0, 3));
 
-    linkButton.setBounds(topBar.removeFromRight(112).reduced(0, 4));
-
-    const int switchTotalWidth = 244;
+    const int switchTotalWidth = 236;
     const int btnWidth = switchTotalWidth / 4;
     auto switchBounds = juce::Rectangle<int>(
         (getWidth() - switchTotalWidth) / 2,
@@ -687,37 +468,30 @@ void MoggDualLadderAudioProcessorEditor::resized() {
         slopeButtons[i].setBounds(switchBounds.removeFromLeft(btnWidth).reduced(2, 0));
     }
 
-    // Steuer-Deck oberhalb der unteren Eurorack-Patchbuchsen
-    auto deck = plate.reduced(28, 0);
-    deck.setTop(74);
-    deck.setBottom(getHeight() - 48);
+    // Steuer-Deck unterhalb der Modul-Banner
+    auto deck = faceplate.reduced(10, 0);
+    deck.setTop(78);
+    deck.setBottom(faceplate.getBottom() - 12);
 
     const int colWidth = deck.getWidth() / 9;
 
-    auto placeControl = [&](juce::Slider& s, juce::Label& l,
-                            juce::ComboBox* modeBox = nullptr,
-                            bool isCenterHero = false) {
-        auto col = deck.removeFromLeft(colWidth).reduced(isCenterHero ? 0 : 4, 0);
-        l.setBounds(col.removeFromTop(17));
+    auto placeControl = [&](juce::Slider& s, juce::Label& l, juce::ComboBox* modeBox = nullptr) {
+        auto col = deck.removeFromLeft(colWidth).reduced(5, 0);
+        l.setBounds(col.removeFromTop(18));
 
-        auto modeSlot = col.removeFromBottom(24);
+        auto modeSlot = col.removeFromBottom(25);
         if (modeBox != nullptr) {
-            modeBox->setBounds(modeSlot.withSizeKeepingCentre(84, 20));
+            modeBox->setBounds(modeSlot.withSizeKeepingCentre(88, 21));
         }
 
-        if (isCenterHero) {
-            // Zentraler DIRT-Regler etwas größer wie der Hauptregler im Foto
-            s.setBounds(col.expanded(8, 6));
-        } else {
-            s.setBounds(col);
-        }
+        s.setBounds(col);
     };
 
     placeControl(inGainSlider,  inGainLabel);
     placeControl(hpFreqSlider,  hpFreqLabel);
     placeControl(hpResSlider,   hpResLabel);
     placeControl(hpSatSlider,   hpSatLabel, &hpSatModeBox);
-    placeControl(dirtSlider,    dirtLabel, nullptr, true);
+    placeControl(dirtSlider,    dirtLabel);
     placeControl(lpFreqSlider,  lpFreqLabel);
     placeControl(lpResSlider,   lpResLabel);
     placeControl(lpSatSlider,   lpSatLabel, &lpSatModeBox);
