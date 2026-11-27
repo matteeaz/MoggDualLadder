@@ -13,7 +13,6 @@ MoggDualLadderAudioProcessor::MoggDualLadderAudioProcessor()
     hpFreqParam  = apvts.getRawParameterValue("hpFreq");
     lpResParam   = apvts.getRawParameterValue("lpRes");
     hpResParam   = apvts.getRawParameterValue("hpRes");
-    driveParam   = apvts.getRawParameterValue("drive");
     linkParam    = apvts.getRawParameterValue("link");
     slopeParam   = apvts.getRawParameterValue("slope");
 
@@ -58,10 +57,6 @@ juce::AudioProcessorValueTreeState::ParameterLayout MoggDualLadderAudioProcessor
         juce::ParameterID("hpRes", 1), "Highpass Resonance",
         juce::NormalisableRange<float>(0.0f, 1.0f, 0.001f), 0.0f));
 
-    params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID("drive", 1), "Input Drive",
-        juce::NormalisableRange<float>(0.0f, 24.0f, 0.1f), 0.0f, "dB"));
-
     params.push_back(std::make_unique<juce::AudioParameterBool>(
         juce::ParameterID("link", 1), "Link Frequencies", false));
 
@@ -105,7 +100,7 @@ void MoggDualLadderAudioProcessor::prepareToPlay(double sampleRate, int samplesP
     oversampling.reset();
     oversampling.initProcessing(static_cast<size_t>(samplesPerBlock));
 
-    const double oversampledRate = sampleRate * oversampling.getOversamplingFactor();
+    const double oversampledRate = sampleRate * static_cast<double>(oversampling.getOversamplingFactor());
 
     filterL.setSampleRate(oversampledRate);
     filterR.setSampleRate(oversampledRate);
@@ -141,12 +136,11 @@ void MoggDualLadderAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer
     const float hpFreq   = hpFreqParam->load();
     const float lpRes    = lpResParam->load();
     const float hpRes    = hpResParam->load();
-    const float drive    = driveParam->load();
     const int slopeIndex = std::clamp(static_cast<int>(std::lround(slopeParam->load())), 0, 3);
     const auto slope     = static_cast<MoggDualLadderFilter::Slope>(slopeIndex);
 
-    filterL.setParameters(lpFreq, hpFreq, lpRes, hpRes, drive, inGain, outGain, slope);
-    filterR.setParameters(lpFreq, hpFreq, lpRes, hpRes, drive, inGain, outGain, slope);
+    filterL.setParameters(lpFreq, hpFreq, lpRes, hpRes, inGain, outGain, slope);
+    filterR.setParameters(lpFreq, hpFreq, lpRes, hpRes, inGain, outGain, slope);
 
     juce::dsp::AudioBlock<float> block(buffer);
     auto osBlock = oversampling.processSamplesUp(block);
