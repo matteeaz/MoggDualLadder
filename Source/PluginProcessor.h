@@ -49,14 +49,18 @@ private:
         2, 2, juce::dsp::Oversampling<float>::filterHalfBandPolyphaseIIR, true
     };
 
-    std::atomic<float>* inGainParam  = nullptr;
-    std::atomic<float>* outGainParam = nullptr;
-    std::atomic<float>* lpFreqParam  = nullptr;
-    std::atomic<float>* hpFreqParam  = nullptr;
-    std::atomic<float>* lpResParam   = nullptr;
-    std::atomic<float>* hpResParam   = nullptr;
-    std::atomic<float>* linkParam    = nullptr;
-    std::atomic<float>* slopeParam   = nullptr;
+    std::atomic<float>* inGainParam   = nullptr;
+    std::atomic<float>* outGainParam  = nullptr;
+    std::atomic<float>* lpFreqParam   = nullptr;
+    std::atomic<float>* hpFreqParam   = nullptr;
+    std::atomic<float>* lpResParam    = nullptr;
+    std::atomic<float>* hpResParam    = nullptr;
+    std::atomic<float>* hpSatParam    = nullptr;
+    std::atomic<float>* hpSat2xParam  = nullptr;
+    std::atomic<float>* lpSatParam    = nullptr;
+    std::atomic<float>* lpSat2xParam  = nullptr;
+    std::atomic<float>* linkParam     = nullptr;
+    std::atomic<float>* slopeParam    = nullptr;
 
     std::atomic<float> linkedFreqRatio { 0.05f };
     std::atomic<bool> isUpdatingLink { false };
