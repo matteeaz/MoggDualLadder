@@ -1,9 +1,9 @@
 # MoggDualLadder
-A modernized take on a dual ladder-filter-circuit.
+A modded take on a dual ladder-filter-circuit.
 
 (!!) Copy VST3 and/or AU component to the dedicated directory. (/Library/Audio/Plug-Ins/...)
 
-Plugin won't open until you remove the qurantine flag.
+PLUGIN WON'T OPEN UNTIL YOU REMOVE QUARANTINE FLAG IN TERMINAL.
 
 (!!) Type these lines in to Terminal and confirm with password.
 
