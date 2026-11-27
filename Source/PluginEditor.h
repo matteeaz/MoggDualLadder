@@ -17,10 +17,10 @@ private:
 
     juce::Slider inGainSlider, outGainSlider;
     juce::Slider hpFreqSlider, hpResSlider, hpSatSlider;
+    juce::Slider screamSlider;
     juce::Slider lpFreqSlider, lpResSlider, lpSatSlider;
 
-    juce::TextButton hpSat2xButton { "TO 22" };
-    juce::TextButton lpSat2xButton { "TO 22" };
+    juce::ComboBox hpSatModeBox, lpSatModeBox;
     juce::ToggleButton linkButton { "LINK FREQ" };
 
     std::array<juce::TextButton, 4> slopeButtons {
@@ -32,20 +32,23 @@ private:
 
     juce::Label inGainLabel, outGainLabel;
     juce::Label hpFreqLabel, hpResLabel, hpSatLabel;
+    juce::Label screamLabel;
     juce::Label lpFreqLabel, lpResLabel, lpSatLabel;
 
-    using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
-    using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
+    using SliderAttachment   = juce::AudioProcessorValueTreeState::SliderAttachment;
+    using ButtonAttachment   = juce::AudioProcessorValueTreeState::ButtonAttachment;
+    using ComboBoxAttachment = juce::AudioProcessorValueTreeState::ComboBoxAttachment;
 
     std::unique_ptr<SliderAttachment> inGainAttachment, outGainAttachment;
     std::unique_ptr<SliderAttachment> hpFreqAttachment, hpResAttachment, hpSatAttachment;
+    std::unique_ptr<SliderAttachment> screamAttachment;
     std::unique_ptr<SliderAttachment> lpFreqAttachment, lpResAttachment, lpSatAttachment;
-    std::unique_ptr<ButtonAttachment> hpSat2xAttachment, lpSat2xAttachment;
+    std::unique_ptr<ComboBoxAttachment> hpSatModeAttachment, lpSatModeAttachment;
     std::unique_ptr<ButtonAttachment> linkAttachment;
     std::unique_ptr<juce::ParameterAttachment> slopeAttachment;
 
     void setupRotarySlider(juce::Slider& slider, juce::Label& label, const juce::String& text, juce::Colour accent);
-    void setupBoostButton(juce::TextButton& button);
+    void setupSatModeBox(juce::ComboBox& box);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MoggDualLadderAudioProcessorEditor)
 };
