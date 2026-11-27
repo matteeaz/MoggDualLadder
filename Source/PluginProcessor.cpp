@@ -41,7 +41,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout MoggDualLadderAudioProcessor
     auto lpFreqRange = juce::NormalisableRange<float>(20.0f, 30000.0f, 0.1f, 0.25f);
     auto levelRange  = juce::NormalisableRange<float>(-10.0f, 10.0f, 0.1f);
     auto resRange    = juce::NormalisableRange<float>(0.0f, 1.0f, 0.001f);
-    auto satRange    = juce::NormalisableRange<float>(1.0f, 11.0f, 0.1f, 0.65f);
+    auto satRange    = juce::NormalisableRange<float>(1.0f, 11.0f, 0.1f);
 
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID("inGain", 1), "Input Level", levelRange, 0.0f,
