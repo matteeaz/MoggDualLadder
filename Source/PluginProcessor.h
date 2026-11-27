@@ -59,7 +59,7 @@ private:
     std::atomic<float>* hpSatModeParam  = nullptr;
     std::atomic<float>* lpSatParam      = nullptr;
     std::atomic<float>* lpSatModeParam  = nullptr;
-    std::atomic<float>* screamParam     = nullptr;
+    std::atomic<float>* dirtParam       = nullptr;
     std::atomic<float>* linkParam       = nullptr;
     std::atomic<float>* slopeParam      = nullptr;
 
