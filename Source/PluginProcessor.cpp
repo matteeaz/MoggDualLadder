@@ -17,7 +17,7 @@ MoggDualLadderAudioProcessor::MoggDualLadderAudioProcessor()
     hpSatModeParam  = apvts.getRawParameterValue("hpSatMode");
     lpSatParam      = apvts.getRawParameterValue("lpSat");
     lpSatModeParam  = apvts.getRawParameterValue("lpSatMode");
-    screamParam     = apvts.getRawParameterValue("scream");
+    dirtParam       = apvts.getRawParameterValue("dirt");
     linkParam       = apvts.getRawParameterValue("link");
     slopeParam      = apvts.getRawParameterValue("slope");
 
@@ -38,12 +38,12 @@ MoggDualLadderAudioProcessor::~MoggDualLadderAudioProcessor() {
 juce::AudioProcessorValueTreeState::ParameterLayout MoggDualLadderAudioProcessor::createParameterLayout() {
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
 
-    auto hpFreqRange  = juce::NormalisableRange<float>(10.0f, 20000.0f, 0.1f, 0.25f);
-    auto lpFreqRange  = juce::NormalisableRange<float>(20.0f, 30000.0f, 0.1f, 0.25f);
-    auto levelRange   = juce::NormalisableRange<float>(-10.0f, 10.0f, 0.1f);
-    auto resRange     = juce::NormalisableRange<float>(0.0f, 1.0f, 0.001f);
-    auto satRange     = juce::NormalisableRange<float>(1.0f, 11.0f, 0.1f);
-    auto screamRange  = juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f);
+    auto hpFreqRange = juce::NormalisableRange<float>(10.0f, 20000.0f, 0.1f, 0.25f);
+    auto lpFreqRange = juce::NormalisableRange<float>(20.0f, 30000.0f, 0.1f, 0.25f);
+    auto levelRange  = juce::NormalisableRange<float>(-10.0f, 10.0f, 0.1f);
+    auto resRange    = juce::NormalisableRange<float>(0.0f, 1.0f, 0.001f);
+    auto satRange    = juce::NormalisableRange<float>(1.0f, 11.0f, 0.1f);
+    auto dirtRange   = juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f);
 
     const juce::StringArray satModes { "Ladder", "Warm", "Fold", "Grit" };
 
@@ -82,7 +82,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout MoggDualLadderAudioProcessor
         juce::ParameterID("lpSatMode", 1), "Lowpass Saturation Mode", satModes, 0));
 
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID("scream", 1), "Cross Feedback Scream", screamRange, 0.0f,
+        juce::ParameterID("dirt", 1), "Dirt", dirtRange, 0.0f,
         juce::AudioParameterFloatAttributes().withLabel("%")));
 
     params.push_back(std::make_unique<juce::AudioParameterBool>(
@@ -221,18 +221,18 @@ void MoggDualLadderAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer
     const float lpSat       = lpSatParam->load();
     const int   lpModeIdx   = std::clamp(static_cast<int>(std::lround(lpSatModeParam->load())), 0, 3);
     const auto  lpSatMode   = static_cast<MoggDualLadderFilter::SatMode>(lpModeIdx);
-    const float scream      = screamParam->load();
+    const float dirt        = dirtParam->load();
     const int   slopeIndex  = std::clamp(static_cast<int>(std::lround(slopeParam->load())), 0, 3);
     const auto  slope       = static_cast<MoggDualLadderFilter::Slope>(slopeIndex);
 
     filterL.setParameters(lpFreq, hpFreq, lpRes, hpRes,
                           hpSat, hpSatMode,
                           lpSat, lpSatMode,
-                          scream, inGain, outGain, slope);
+                          dirt, inGain, outGain, slope);
     filterR.setParameters(lpFreq, hpFreq, lpRes, hpRes,
                           hpSat, hpSatMode,
                           lpSat, lpSatMode,
-                          scream, inGain, outGain, slope);
+                          dirt, inGain, outGain, slope);
 
     juce::dsp::AudioBlock<float> block(buffer);
     auto osBlock = oversampling.processSamplesUp(block);
