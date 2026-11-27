@@ -4,15 +4,15 @@
 MoggDualLadderAudioProcessorEditor::MoggDualLadderAudioProcessorEditor(MoggDualLadderAudioProcessor& p)
     : AudioProcessorEditor(&p), audioProcessor(p)
 {
-    const auto mainAccent   = juce::Colours::orange;
-    const auto satAccent    = juce::Colour(0xffff5a26);
-    const auto screamAccent = juce::Colour(0xffff2e63);
+    const auto mainAccent = juce::Colours::orange;
+    const auto satAccent  = juce::Colour(0xffff5a26);
+    const auto dirtAccent = juce::Colour(0xffd99b38);
 
     setupRotarySlider(inGainSlider,  inGainLabel,  "IN LEVEL",  mainAccent);
     setupRotarySlider(hpFreqSlider,  hpFreqLabel,  "HP CUTOFF", mainAccent);
     setupRotarySlider(hpResSlider,   hpResLabel,   "HP RES",    mainAccent);
     setupRotarySlider(hpSatSlider,   hpSatLabel,   "HP SAT",    satAccent);
-    setupRotarySlider(screamSlider,  screamLabel,  "SCREAM",    screamAccent);
+    setupRotarySlider(dirtSlider,    dirtLabel,    "DIRT",      dirtAccent);
     setupRotarySlider(lpFreqSlider,  lpFreqLabel,  "LP CUTOFF", mainAccent);
     setupRotarySlider(lpResSlider,   lpResLabel,   "LP RES",    mainAccent);
     setupRotarySlider(lpSatSlider,   lpSatLabel,   "LP SAT",    satAccent);
@@ -65,7 +65,7 @@ MoggDualLadderAudioProcessorEditor::MoggDualLadderAudioProcessorEditor(MoggDualL
     hpResAttachment     = std::make_unique<SliderAttachment>(audioProcessor.apvts, "hpRes",     hpResSlider);
     hpSatAttachment     = std::make_unique<SliderAttachment>(audioProcessor.apvts, "hpSat",     hpSatSlider);
     hpSatModeAttachment = std::make_unique<ComboBoxAttachment>(audioProcessor.apvts, "hpSatMode", hpSatModeBox);
-    screamAttachment    = std::make_unique<SliderAttachment>(audioProcessor.apvts, "scream",    screamSlider);
+    dirtAttachment      = std::make_unique<SliderAttachment>(audioProcessor.apvts, "dirt",      dirtSlider);
     lpFreqAttachment    = std::make_unique<SliderAttachment>(audioProcessor.apvts, "lpFreq",    lpFreqSlider);
     lpResAttachment     = std::make_unique<SliderAttachment>(audioProcessor.apvts, "lpRes",     lpResSlider);
     lpSatAttachment     = std::make_unique<SliderAttachment>(audioProcessor.apvts, "lpSat",     lpSatSlider);
@@ -114,7 +114,7 @@ void MoggDualLadderAudioProcessorEditor::paint(juce::Graphics& g) {
     g.setFont(juce::FontOptions(18.0f, juce::Font::bold));
     g.drawText("MOGG DUAL LADDER", 24, 20, 240, 26, juce::Justification::left);
 
-    // Trennlinien: IN | HP-Sektion (3) | SCREAM (1) | LP-Sektion (3) | OUT
+    // Trennlinien: IN | HP-Sektion (3) | DIRT (1) | LP-Sektion (3) | OUT
     auto inner = getLocalBounds().reduced(24);
     const int colWidth = inner.getWidth() / 9;
     const float topY = static_cast<float>(inner.getY() + 42);
@@ -165,7 +165,7 @@ void MoggDualLadderAudioProcessorEditor::resized() {
     placeControl(hpFreqSlider,  hpFreqLabel);
     placeControl(hpResSlider,   hpResLabel);
     placeControl(hpSatSlider,   hpSatLabel, &hpSatModeBox);
-    placeControl(screamSlider,  screamLabel);
+    placeControl(dirtSlider,    dirtLabel);
     placeControl(lpFreqSlider,  lpFreqLabel);
     placeControl(lpResSlider,   lpResLabel);
     placeControl(lpSatSlider,   lpSatLabel, &lpSatModeBox);
