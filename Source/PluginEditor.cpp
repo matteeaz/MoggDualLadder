@@ -17,7 +17,7 @@ namespace {
 MoggLookAndFeel::MoggLookAndFeel() {
     setColour(juce::PopupMenu::backgroundColourId, kPanelDark);
     setColour(juce::PopupMenu::textColourId, kCrispWhite);
-    setColour(juce::PopupMenu::highlightedBackgroundColourId, kNeonPink.withAlpha(0.28f));
+    setColour(juce::PopupMenu::highlightedBackgroundColourId, kNeonTurquoise.withAlpha(0.28f));
     setColour(juce::PopupMenu::highlightedTextColourId, kCrispWhite);
 }
 
@@ -64,8 +64,8 @@ void MoggLookAndFeel::drawRotarySlider(juce::Graphics& g, int x, int y, int widt
         valArc.addCentredArc(centre.x, centre.y, arcRadius, arcRadius, 0.0f, rotaryStartAngle, angle, true);
 
         if (dualNeon) {
-            juce::ColourGradient grad(kNeonTurquoise, bounds.getX(), centre.y,
-                                      kNeonPink, bounds.getRight(), centre.y, false);
+            juce::ColourGradient grad(kNeonPink,      bounds.getX(), centre.y,
+                                      kNeonTurquoise, bounds.getRight(), centre.y, false);
             g.setGradientFill(grad);
         } else {
             g.setColour(accent.withAlpha(0.24f));
@@ -124,7 +124,7 @@ void MoggLookAndFeel::drawRotarySlider(juce::Graphics& g, int x, int y, int widt
     // 6. Kontrastreicher Zeigerstrich (Moog Pointer)
     const float sinPtr = std::sin(angle);
     const float cosPtr = -std::cos(angle);
-    const auto activePtrColour = dualNeon ? kNeonPink : (accent == kSilverLight ? kChassisBlack : accent);
+    const auto activePtrColour = dualNeon ? kNeonTurquoise : (accent == kSilverLight ? kChassisBlack : accent);
 
     g.setColour(kChassisBlack);
     g.drawLine(centre.x + sinPtr * (capRadius * 0.22f),
@@ -148,10 +148,10 @@ void MoggLookAndFeel::drawButtonBackground(juce::Graphics& g, juce::Button& butt
     auto bounds = button.getLocalBounds().toFloat().reduced(0.5f);
     const bool isOn = button.getToggleState();
 
-    // Unterschiedliche Neon-Akzente für Slope-Buttons
-    juce::Colour onColour = kNeonTurquoise;
+    // Links Neon-Pink (6 dB / 12 dB), rechts Neon-Türkis (24 dB / 48 dB)
+    juce::Colour onColour = kNeonPink;
     if (button.getButtonText() == "24 dB" || button.getButtonText() == "48 dB") {
-        onColour = kNeonPink;
+        onColour = kNeonTurquoise;
     }
 
     if (isOn) {
@@ -190,8 +190,8 @@ void MoggLookAndFeel::drawToggleButton(juce::Graphics& g, juce::ToggleButton& bu
     g.fillRoundedRectangle(bounds, 4.0f);
 
     if (isOn) {
-        juce::ColourGradient borderGrad(kNeonTurquoise, bounds.getX(), bounds.getY(),
-                                        kNeonPink,      bounds.getRight(), bounds.getBottom(), false);
+        juce::ColourGradient borderGrad(kNeonPink,      bounds.getX(), bounds.getY(),
+                                        kNeonTurquoise, bounds.getRight(), bounds.getBottom(), false);
         g.setGradientFill(borderGrad);
         g.drawRoundedRectangle(bounds, 4.0f, 1.4f);
     } else {
@@ -199,7 +199,7 @@ void MoggLookAndFeel::drawToggleButton(juce::Graphics& g, juce::ToggleButton& bu
         g.drawRoundedRectangle(bounds, 4.0f, 1.0f);
     }
 
-    // LED-Statuspunkt links im Schalter
+    // LED-Statuspunkt links im Schalter (passend zur rechten Seite in Neon-Türkis)
     auto ledArea = bounds.removeFromLeft(22.0f).withSizeKeepingCentre(8.0f, 8.0f);
     if (isOn) {
         g.setColour(kNeonTurquoise.withAlpha(0.35f));
@@ -245,17 +245,17 @@ MoggDualLadderAudioProcessorEditor::MoggDualLadderAudioProcessorEditor(MoggDualL
     setLookAndFeel(&moggLookAndFeel);
 
     setupRotarySlider(inGainSlider,  inGainLabel,  "IN LEVEL",  kSilverLight);
-    setupRotarySlider(hpFreqSlider,  hpFreqLabel,  "HP CUTOFF", kNeonTurquoise);
-    setupRotarySlider(hpResSlider,   hpResLabel,   "HP RES",    kNeonTurquoise);
-    setupRotarySlider(hpSatSlider,   hpSatLabel,   "HP SAT",    kNeonTurquoise);
-    setupRotarySlider(dirtSlider,    dirtLabel,    "DIRT",      kNeonPink, true);
-    setupRotarySlider(lpFreqSlider,  lpFreqLabel,  "LP CUTOFF", kNeonPink);
-    setupRotarySlider(lpResSlider,   lpResLabel,   "LP RES",    kNeonPink);
-    setupRotarySlider(lpSatSlider,   lpSatLabel,   "LP SAT",    kNeonPink);
+    setupRotarySlider(hpFreqSlider,  hpFreqLabel,  "HP CUTOFF", kNeonPink);
+    setupRotarySlider(hpResSlider,   hpResLabel,   "HP RES",    kNeonPink);
+    setupRotarySlider(hpSatSlider,   hpSatLabel,   "HP SAT",    kNeonPink);
+    setupRotarySlider(dirtSlider,    dirtLabel,    "DIRT",      kNeonTurquoise, true);
+    setupRotarySlider(lpFreqSlider,  lpFreqLabel,  "LP CUTOFF", kNeonTurquoise);
+    setupRotarySlider(lpResSlider,   lpResLabel,   "LP RES",    kNeonTurquoise);
+    setupRotarySlider(lpSatSlider,   lpSatLabel,   "LP SAT",    kNeonTurquoise);
     setupRotarySlider(outGainSlider, outGainLabel, "OUT LEVEL", kSilverLight);
 
-    setupSatModeBox(hpSatModeBox, kNeonTurquoise);
-    setupSatModeBox(lpSatModeBox, kNeonPink);
+    setupSatModeBox(hpSatModeBox, kNeonPink);
+    setupSatModeBox(lpSatModeBox, kNeonTurquoise);
 
     addAndMakeVisible(linkButton);
 
@@ -391,7 +391,7 @@ void MoggDualLadderAudioProcessorEditor::paint(juce::Graphics& g) {
     g.setColour(kSilverMid.withAlpha(0.45f));
     g.drawRoundedRectangle(faceplate, 6.0f, 1.2f);
 
-    // 4. Moog-inspirierte Kopfzeile & Neon-Zierlinie
+    // 4. Moog-inspirierte Kopfzeile & Neon-Zierlinie (Links Pink, Rechts Türkis)
     const float headerLeft  = faceplate.getX() + 14.0f;
     const float headerRight = faceplate.getRight() - 14.0f;
 
@@ -403,12 +403,11 @@ void MoggDualLadderAudioProcessorEditor::paint(juce::Graphics& g) {
     g.setFont(juce::FontOptions(13.0f, juce::Font::bold));
     g.drawText("DUAL LADDER", static_cast<int>(headerLeft + 76.0f), 20, 150, 20, juce::Justification::left);
 
-    // Doppelte Neon-Türkis / Neon-Pink Zierlinie unter der Kopfzeile
     const float lineY = 48.0f;
     const float midX  = w * 0.5f;
-    g.setColour(kNeonTurquoise);
-    g.fillRect(headerLeft, lineY, midX - headerLeft, 1.8f);
     g.setColour(kNeonPink);
+    g.fillRect(headerLeft, lineY, midX - headerLeft, 1.8f);
+    g.setColour(kNeonTurquoise);
     g.fillRect(midX, lineY, headerRight - midX, 1.8f);
 
     // 5. Klassische weiße Moog-Sektionsrahmen & Titel über den 5 Modulen
@@ -430,7 +429,6 @@ void MoggDualLadderAudioProcessorEditor::paint(juce::Graphics& g) {
         g.setColour(kCrispWhite.withAlpha(0.28f));
         g.drawRoundedRectangle(modRect, 5.0f, 1.0f);
 
-        // Sektions-Banner oben im Modul
         auto banner = modRect.removeFromTop(18.0f);
         g.setColour(titleAccent.withAlpha(0.16f));
         g.fillRoundedRectangle(banner.reduced(1.0f, 1.0f), 4.0f);
@@ -441,9 +439,9 @@ void MoggDualLadderAudioProcessorEditor::paint(juce::Graphics& g) {
     };
 
     drawModuleFrame(0, 1, "INPUT",    kSilverLight);
-    drawModuleFrame(1, 3, "HIGHPASS", kNeonTurquoise);
+    drawModuleFrame(1, 3, "HIGHPASS", kNeonPink);
     drawModuleFrame(4, 1, "MOD",      kCrispWhite);
-    drawModuleFrame(5, 3, "LOWPASS",  kNeonPink);
+    drawModuleFrame(5, 3, "LOWPASS",  kNeonTurquoise);
     drawModuleFrame(8, 1, "OUTPUT",   kSilverLight);
 }
 
