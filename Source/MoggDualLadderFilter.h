@@ -39,9 +39,13 @@ public:
         lpRes = static_cast<double>(std::clamp(lpResonance, 0.0f, 1.05f)) * 4.15 * resTolerance;
         hpRes = static_cast<double>(std::clamp(hpResonance, 0.0f, 1.05f)) * 4.15 * resTolerance;
 
-        // Sättigung: 1.0 = natürliche Transistor-Ladder-Sättigung, max. 11.0 (mit TO 22 bis 22.0)
-        const double hpBaseAlpha = std::clamp(static_cast<double>(hpSat), 1.0, 11.0);
-        const double lpBaseAlpha = std::clamp(static_cast<double>(lpSat), 1.0, 11.0);
+        // UI-Skala 1.0 bis 11.0 -> intern musikalisch skaliert auf alpha 1.0 (natürlich) bis 4.5 (+13 dB)
+        // Mit aktivem TO 22 Verdopplung auf 2.0 bis 9.0 (+19 dB)
+        const double hpNorm = (std::clamp(static_cast<double>(hpSat), 1.0, 11.0) - 1.0) / 10.0;
+        const double lpNorm = (std::clamp(static_cast<double>(lpSat), 1.0, 11.0) - 1.0) / 10.0;
+
+        const double hpBaseAlpha = 1.0 + 3.5 * hpNorm;
+        const double lpBaseAlpha = 1.0 + 3.5 * lpNorm;
 
         targetHpAlpha = hpSatTo22 ? (hpBaseAlpha * 2.0) : hpBaseAlpha;
         targetLpAlpha = lpSatTo22 ? (lpBaseAlpha * 2.0) : lpBaseAlpha;
@@ -148,7 +152,7 @@ private:
         return out;
     }
 
-    // Physikalisches 4-Pol Moog Ladder Modell mit skalierbarer Sättigung (1..22) und 0 dB Passband-Gain
+    // Physikalisches 4-Pol Moog Ladder Modell mit skalierbarer Sättigung und 0 dB Passband-Gain
     double processSingleLadder(double input, double g, double k, double alpha,
                                double s[4], bool isHighpass, Slope tapSlope) {
         constexpr double resPassbandComp = 0.65;
@@ -160,7 +164,7 @@ private:
         double x3 = s[2];
         double x4 = s[3];
 
-        // Geschlossener 4x4 Newton-Raphson-Solver (5 Iterationen für volle Stabilität bis Alpha = 22)
+        // Geschlossener 4x4 Newton-Raphson-Solver
         for (int iter = 0; iter < 5; ++iter) {
             const double tx4 = fastTanh(alpha * x4);
             const double sx4 = tx4 * invAlpha;
