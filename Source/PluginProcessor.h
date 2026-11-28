@@ -4,13 +4,13 @@
 #include <juce_dsp/juce_dsp.h>
 #include <atomic>
 #include <cmath>
-#include "MoggDualLadderFilter.h"
+#include "DirtyMoggerFilter.h"
 
-class MoggDualLadderAudioProcessor : public juce::AudioProcessor,
-                                     public juce::AudioProcessorValueTreeState::Listener {
+class DirtyMoggerAudioProcessor : public juce::AudioProcessor,
+                                  public juce::AudioProcessorValueTreeState::Listener {
 public:
-    MoggDualLadderAudioProcessor();
-    ~MoggDualLadderAudioProcessor() override;
+    DirtyMoggerAudioProcessor();
+    ~DirtyMoggerAudioProcessor() override;
 
     void prepareToPlay(double sampleRate, int samplesPerBlock) override;
     void releaseResources() override;
@@ -94,8 +94,8 @@ private:
         while (peak > current && !target.compare_exchange_weak(current, peak, std::memory_order_relaxed)) {}
     }
 
-    MoggDualLadderFilter filterL;
-    MoggDualLadderFilter filterR;
+    DirtyMoggerFilter filterL;
+    DirtyMoggerFilter filterR;
 
     HighShelfBiquad airShelfL;
     HighShelfBiquad airShelfR;
@@ -130,5 +130,5 @@ private:
     std::atomic<float> outPeakL { 0.0f };
     std::atomic<float> outPeakR { 0.0f };
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MoggDualLadderAudioProcessor)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(DirtyMoggerAudioProcessor)
 };
