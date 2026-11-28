@@ -8,9 +8,13 @@ class MoggLookAndFeel : public juce::LookAndFeel_V4 {
 public:
     MoggLookAndFeel();
 
+    juce::Slider::SliderLayout getSliderLayout(juce::Slider& slider) override;
+
     void drawRotarySlider(juce::Graphics& g, int x, int y, int width, int height,
                           float sliderPosProportional, float rotaryStartAngle,
                           float rotaryEndAngle, juce::Slider& slider) override;
+
+    void drawLabel(juce::Graphics& g, juce::Label& label) override;
 
     void drawButtonBackground(juce::Graphics& g, juce::Button& button,
                               const juce::Colour& backgroundColour,
@@ -88,7 +92,7 @@ private:
                            juce::Colour accent, int knobRole,
                            juce::Slider::TextEntryBoxPosition textBoxPos = juce::Slider::TextBoxBelow,
                            int textW = 76, int textH = 18);
-    void setupSatModeBox(juce::ComboBox& box, juce::Colour accent);
+    void setupSatModeBox(juce::ComboBox& box);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MoggDualLadderAudioProcessorEditor)
 };
