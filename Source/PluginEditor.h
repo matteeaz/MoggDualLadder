@@ -54,7 +54,8 @@ private:
     juce::Slider lpFreqSlider, lpResSlider, lpSatSlider;
 
     juce::ComboBox hpSatModeBox, lpSatModeBox;
-    juce::ToggleButton linkButton { "LINK FREQ" };
+    juce::ToggleButton linkButton     { "LINK FREQ" };
+    juce::ToggleButton airBoostButton { "AIR BOOST" };
 
     std::array<juce::TextButton, 4> slopeButtons {
         juce::TextButton("6 dB"),
@@ -65,7 +66,7 @@ private:
 
     juce::Label inGainLabel, outGainLabel;
     juce::Label hpResLabel, hpSatAmtLabel, hpSatModeLabel;
-    juce::Label dirtLabel;
+    juce::Label dirtLabel, airBoostLabel;
     juce::Label lpResLabel, lpSatAmtLabel, lpSatModeLabel;
 
     juce::Rectangle<int> inputModuleRect, hpModuleRect, modModuleRect, lpModuleRect, outputModuleRect;
@@ -84,7 +85,7 @@ private:
     std::unique_ptr<SliderAttachment> dirtAttachment;
     std::unique_ptr<SliderAttachment> lpFreqAttachment, lpResAttachment, lpSatAttachment;
     std::unique_ptr<ComboBoxAttachment> hpSatModeAttachment, lpSatModeAttachment;
-    std::unique_ptr<ButtonAttachment> linkAttachment;
+    std::unique_ptr<ButtonAttachment> linkAttachment, airBoostAttachment;
     std::unique_ptr<juce::ParameterAttachment> slopeAttachment;
 
     void setupRotarySlider(juce::Slider& slider, juce::Label* label, const juce::String& text,
