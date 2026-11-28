@@ -45,7 +45,6 @@ private:
     MoggDualLadderAudioProcessor& audioProcessor;
     MoggLookAndFeel moggLookAndFeel;
 
-    // 9 Regler (1:1 passend zu den 9 DSP-Parametern, ohne Duplikate)
     juce::Slider inGainSlider, outGainSlider;
     juce::Slider hpFreqSlider, hpResSlider, hpSatSlider;
     juce::Slider dirtSlider;
@@ -66,7 +65,6 @@ private:
     juce::Label dirtLabel;
     juce::Label lpResLabel, lpSatAmtLabel, lpSatModeLabel;
 
-    // Layout-Bereiche für Modulrahmen, Sat-Subboxen & Stereo-LED-Meter
     juce::Rectangle<int> inputModuleRect, hpModuleRect, modModuleRect, lpModuleRect, outputModuleRect;
     juce::Rectangle<int> inputMeterRect, outputMeterRect;
     juce::Rectangle<int> hpSatBoxRect, lpSatBoxRect;
