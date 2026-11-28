@@ -30,7 +30,8 @@ public:
                       juce::ComboBox& box) override;
 };
 
-class MoggDualLadderAudioProcessorEditor : public juce::AudioProcessorEditor {
+class MoggDualLadderAudioProcessorEditor : public juce::AudioProcessorEditor,
+                                           private juce::Timer {
 public:
     explicit MoggDualLadderAudioProcessorEditor(MoggDualLadderAudioProcessor&);
     ~MoggDualLadderAudioProcessorEditor() override;
@@ -39,9 +40,12 @@ public:
     void resized() override;
 
 private:
+    void timerCallback() override;
+
     MoggDualLadderAudioProcessor& audioProcessor;
     MoggLookAndFeel moggLookAndFeel;
 
+    // 9 Regler (1:1 passend zu den 9 DSP-Parametern, ohne Duplikate)
     juce::Slider inGainSlider, outGainSlider;
     juce::Slider hpFreqSlider, hpResSlider, hpSatSlider;
     juce::Slider dirtSlider;
@@ -58,9 +62,17 @@ private:
     };
 
     juce::Label inGainLabel, outGainLabel;
-    juce::Label hpFreqLabel, hpResLabel, hpSatLabel;
+    juce::Label hpResLabel, hpSatAmtLabel, hpSatModeLabel;
     juce::Label dirtLabel;
-    juce::Label lpFreqLabel, lpResLabel, lpSatLabel;
+    juce::Label lpResLabel, lpSatAmtLabel, lpSatModeLabel;
+
+    // Layout-Bereiche für Modulrahmen, Sat-Subboxen & Stereo-LED-Meter
+    juce::Rectangle<int> inputModuleRect, hpModuleRect, modModuleRect, lpModuleRect, outputModuleRect;
+    juce::Rectangle<int> inputMeterRect, outputMeterRect;
+    juce::Rectangle<int> hpSatBoxRect, lpSatBoxRect;
+
+    float dispInL  = 0.0f, dispInR  = 0.0f;
+    float dispOutL = 0.0f, dispOutR = 0.0f;
 
     using SliderAttachment   = juce::AudioProcessorValueTreeState::SliderAttachment;
     using ButtonAttachment   = juce::AudioProcessorValueTreeState::ButtonAttachment;
@@ -74,8 +86,10 @@ private:
     std::unique_ptr<ButtonAttachment> linkAttachment;
     std::unique_ptr<juce::ParameterAttachment> slopeAttachment;
 
-    void setupRotarySlider(juce::Slider& slider, juce::Label& label, const juce::String& text,
-                           juce::Colour accent, bool dualNeon = false);
+    void setupRotarySlider(juce::Slider& slider, juce::Label* label, const juce::String& text,
+                           juce::Colour accent, int knobRole,
+                           juce::Slider::TextEntryBoxPosition textBoxPos = juce::Slider::TextBoxBelow,
+                           int textW = 76, int textH = 18);
     void setupSatModeBox(juce::ComboBox& box, juce::Colour accent);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MoggDualLadderAudioProcessorEditor)
