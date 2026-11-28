@@ -50,7 +50,7 @@ private:
 
     juce::Slider inGainSlider, outGainSlider;
     juce::Slider hpFreqSlider, hpResSlider, hpSatSlider;
-    juce::Slider dirtSlider, biasSlider;
+    juce::Slider dirtSlider;
     juce::Slider lpFreqSlider, lpResSlider, lpSatSlider;
 
     juce::ComboBox hpSatModeBox, lpSatModeBox;
@@ -66,7 +66,7 @@ private:
 
     juce::Label inGainLabel, outGainLabel;
     juce::Label hpResLabel, hpSatAmtLabel, hpSatModeLabel;
-    juce::Label dirtLabel, biasLabel, airBoostLabel;
+    juce::Label dirtLabel, airBoostLabel;
     juce::Label lpResLabel, lpSatAmtLabel, lpSatModeLabel;
 
     juce::Rectangle<int> inputModuleRect, hpModuleRect, modModuleRect, lpModuleRect, outputModuleRect;
@@ -82,7 +82,7 @@ private:
 
     std::unique_ptr<SliderAttachment> inGainAttachment, outGainAttachment;
     std::unique_ptr<SliderAttachment> hpFreqAttachment, hpResAttachment, hpSatAttachment;
-    std::unique_ptr<SliderAttachment> dirtAttachment, biasAttachment;
+    std::unique_ptr<SliderAttachment> dirtAttachment;
     std::unique_ptr<SliderAttachment> lpFreqAttachment, lpResAttachment, lpSatAttachment;
     std::unique_ptr<ComboBoxAttachment> hpSatModeAttachment, lpSatModeAttachment;
     std::unique_ptr<ButtonAttachment> linkAttachment, airBoostAttachment;
