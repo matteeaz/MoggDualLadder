@@ -4,7 +4,7 @@
 
 namespace {
     // Regler-Hierarchie:
-    // 0 = Standard Moog-Poti (IN/OUT LEVEL, RES, SAT AMT, BIAS)
+    // 0 = Standard Moog-Poti (IN/OUT LEVEL, RES, SAT AMT)
     // 1 = Hero Cutoff-Regler (riesig mit leuchtendem Radial-Skalenkranz)
     // 2 = Zentraler DIRT-Regler (mittelgroß mit Pastell-Rosa->Türkis-Verlauf)
     constexpr int kRoleStandard = 0;
@@ -22,9 +22,10 @@ namespace {
     const juce::Colour kPureWhite        { 0xffffffff };
     const juce::Colour kMeterGrayLow     { 0xff5a6270 };
 
-    // Leichtes Pastell-Rosa & Pastell-Türkis
+    // Leichtes Pastell-Rosa, Pastell-Türkis & ganz helles Hellblau für Air Boost
     const juce::Colour kPastelPink       { 0xfff7bfd4 };
     const juce::Colour kPastelTurquoise  { 0xff7ad7c8 };
+    const juce::Colour kLightSkyBlue     { 0xffc2ebff };
 
     float linearToMeterNorm(float peak) noexcept {
         if (peak <= 1.0e-5f) return 0.0f;
@@ -320,7 +321,7 @@ void MoggLookAndFeel::drawRotarySlider(juce::Graphics& g, int x, int y, int widt
         }
     }
 
-    // 2. Pastell-Leuchtring um den Regler
+    // 2. Leuchtring um den Regler (Pastell für Filter/Mod, Reinweiß für Input/Output)
     const float arcRadius = radius - (isHero ? 14.5f : (isCenter ? 6.0f : 4.5f));
     const float arcWidth  = isHero ? 4.2f : (isCenter ? 3.5f : 2.6f);
 
@@ -432,22 +433,20 @@ void MoggLookAndFeel::drawButtonBackground(juce::Graphics& g, juce::Button& butt
     auto bounds = button.getLocalBounds().toFloat().reduced(1.0f);
     const bool isOn = button.getToggleState();
 
-    juce::Colour ledCol = kPastelPink;
-    if (button.getButtonText() == "24 dB" || button.getButtonText() == "48 dB") {
-        ledCol = kPastelTurquoise;
-    }
+    // Slope-Buttons leuchten weiß, wenn sie gedrückt sind
+    const juce::Colour ledCol = kPureWhite;
 
-    g.setColour(isOn ? juce::Colour(0xff1d2028) : (shouldDrawButtonAsHighlighted ? juce::Colour(0xff191c23) : kRecessBlack));
+    g.setColour(isOn ? juce::Colour(0xff232732) : (shouldDrawButtonAsHighlighted ? juce::Colour(0xff191c23) : kRecessBlack));
     g.fillRoundedRectangle(bounds, 4.0f);
 
-    g.setColour(isOn ? ledCol.withAlpha(0.85f) : kSilverDark.withAlpha(0.65f));
-    g.drawRoundedRectangle(bounds, 4.0f, isOn ? 1.2f : 0.9f);
+    g.setColour(isOn ? ledCol.withAlpha(0.92f) : kSilverDark.withAlpha(0.65f));
+    g.drawRoundedRectangle(bounds, 4.0f, isOn ? 1.25f : 0.9f);
 
     const float cx = bounds.getCentreX();
     const float cy = bounds.getBottom() - 6.0f;
     if (isOn) {
-        g.setColour(ledCol.withAlpha(0.32f));
-        g.fillEllipse(cx - 4.5f, cy - 4.5f, 9.0f, 9.0f);
+        g.setColour(ledCol.withAlpha(0.36f));
+        g.fillEllipse(cx - 4.8f, cy - 4.8f, 9.6f, 9.6f);
         g.setColour(ledCol);
     } else {
         g.setColour(kSilverDark.withAlpha(0.45f));
@@ -459,7 +458,7 @@ void MoggLookAndFeel::drawButtonText(juce::Graphics& g, juce::TextButton& button
                                      bool, bool) {
     auto textArea = button.getLocalBounds().withTrimmedBottom(8);
     g.setFont(juce::FontOptions(10.5f, juce::Font::bold));
-    g.setColour(button.getToggleState() ? kCrispWhite : kSilverMid);
+    g.setColour(button.getToggleState() ? kPureWhite : kSilverMid);
     g.drawText(button.getButtonText(), textArea, juce::Justification::centred, false);
 }
 
@@ -467,11 +466,20 @@ void MoggLookAndFeel::drawToggleButton(juce::Graphics& g, juce::ToggleButton& bu
                                        bool shouldDrawButtonAsHighlighted, bool) {
     auto bounds = button.getLocalBounds().toFloat().reduced(1.0f);
     const bool isOn = button.getToggleState();
+    const bool isAirBoost = (button.getComponentID() == "airBoost");
 
     g.setColour(isOn ? juce::Colour(0xff1a1d24) : (shouldDrawButtonAsHighlighted ? juce::Colour(0xff171a20) : kRecessBlack));
     g.fillRoundedRectangle(bounds, 4.0f);
 
-    if (isOn) {
+    if (isAirBoost) {
+        // Air Boost dauerhaft in einem ganz hellen Hellblau einrahmen
+        if (isOn) {
+            g.setColour(kLightSkyBlue.withAlpha(0.16f));
+            g.fillRoundedRectangle(bounds.reduced(1.0f), 3.5f);
+        }
+        g.setColour(isOn ? kLightSkyBlue : kLightSkyBlue.withAlpha(0.85f));
+        g.drawRoundedRectangle(bounds, 4.0f, isOn ? 1.35f : 1.15f);
+    } else if (isOn) {
         juce::ColourGradient borderGrad(kPastelPink, bounds.getX(), bounds.getY(),
                                         kPastelTurquoise, bounds.getRight(), bounds.getBottom(), false);
         g.setGradientFill(borderGrad);
@@ -484,12 +492,12 @@ void MoggLookAndFeel::drawToggleButton(juce::Graphics& g, juce::ToggleButton& bu
     auto switchSlot = bounds.removeFromLeft(28.0f).reduced(5.0f, 6.0f);
     g.setColour(kChassisBlack);
     g.fillRoundedRectangle(switchSlot, 2.5f);
-    g.setColour(kSilverDark);
+    g.setColour(isAirBoost ? kLightSkyBlue.withAlpha(0.55f) : kSilverDark);
     g.drawRoundedRectangle(switchSlot, 2.5f, 0.8f);
 
     auto thumb = isOn ? switchSlot.removeFromRight(switchSlot.getWidth() * 0.55f)
                       : switchSlot.removeFromLeft(switchSlot.getWidth() * 0.55f);
-    g.setColour(isOn ? kPastelPink : kSilverMid);
+    g.setColour(isOn ? (isAirBoost ? kLightSkyBlue : kPastelPink) : kSilverMid);
     g.fillRoundedRectangle(thumb.reduced(1.0f), 2.0f);
 
     g.setFont(juce::FontOptions(10.3f, juce::Font::bold));
@@ -522,9 +530,9 @@ void MoggLookAndFeel::drawComboBox(juce::Graphics& g, int width, int height, boo
 MoggEditorContent::MoggEditorContent(MoggDualLadderAudioProcessor& p)
     : audioProcessor(p)
 {
-    // 1. INPUT & OUTPUT (TextBox-Breite = 74 px, identisch zur Meter-Umrandung)
-    setupRotarySlider(inGainSlider,  &inGainLabel,  "IN LEVEL",  kPastelPink,      kRoleStandard, juce::Slider::TextBoxBelow, 74, 17);
-    setupRotarySlider(outGainSlider, &outGainLabel, "OUT LEVEL", kPastelTurquoise, kRoleStandard, juce::Slider::TextBoxBelow, 74, 17);
+    // 1. INPUT & OUTPUT (weißer Leuchtring am Knob, TextBox-Breite = 74 px wie Meter-Umrandung)
+    setupRotarySlider(inGainSlider,  &inGainLabel,  "IN LEVEL",  kPureWhite, kRoleStandard, juce::Slider::TextBoxBelow, 74, 17);
+    setupRotarySlider(outGainSlider, &outGainLabel, "OUT LEVEL", kPureWhite, kRoleStandard, juce::Slider::TextBoxBelow, 74, 17);
 
     // 2. HIGHPASS (Hero-Cutoff + HP RES + SATURATION-Gruppe [AMT links neben dem Knob + MODE])
     setupRotarySlider(hpFreqSlider, nullptr, "", kPastelPink, kRoleHero, juce::Slider::TextBoxBelow, 90, 19);
@@ -539,9 +547,8 @@ MoggEditorContent::MoggEditorContent(MoggDualLadderAudioProcessor& p)
     hpSatModeLabel.setColour(juce::Label::textColourId, kSilverMid);
     addAndMakeVisible(hpSatModeLabel);
 
-    // 3. MOD (DIRT + kleiner BIAS-Regler [1.0 .. 11.0] + weicher Höhen-Shelf-Boost)
-    setupRotarySlider(dirtSlider, &dirtLabel, "DIRT", kPastelTurquoise, kRoleCenter,   juce::Slider::TextBoxBelow, 74, 17);
-    setupRotarySlider(biasSlider, &biasLabel, "BIAS", kPastelPink,      kRoleStandard, juce::Slider::TextBoxBelow, 66, 16);
+    // 3. MOD (Zentraler DIRT-Regler + weicher Höhen-Shelf-Boost)
+    setupRotarySlider(dirtSlider, &dirtLabel, "DIRT", kPastelTurquoise, kRoleCenter, juce::Slider::TextBoxBelow, 76, 18);
 
     airBoostLabel.setText("HF SHELF", juce::dontSendNotification);
     airBoostLabel.setJustificationType(juce::Justification::centred);
@@ -549,6 +556,7 @@ MoggEditorContent::MoggEditorContent(MoggDualLadderAudioProcessor& p)
     airBoostLabel.setColour(juce::Label::textColourId, kSilverLight);
     addAndMakeVisible(airBoostLabel);
 
+    airBoostButton.setComponentID("airBoost");
     airBoostButton.setToggleState(false, juce::dontSendNotification);
     addAndMakeVisible(airBoostButton);
 
@@ -602,7 +610,6 @@ MoggEditorContent::MoggEditorContent(MoggDualLadderAudioProcessor& p)
     hpSatAttachment     = std::make_unique<SliderAttachment>(audioProcessor.apvts, "hpSat",     hpSatSlider);
     hpSatModeAttachment = std::make_unique<ComboBoxAttachment>(audioProcessor.apvts, "hpSatMode", hpSatModeBox);
     dirtAttachment      = std::make_unique<SliderAttachment>(audioProcessor.apvts, "dirt",      dirtSlider);
-    biasAttachment      = std::make_unique<SliderAttachment>(audioProcessor.apvts, "bias",      biasSlider);
     airBoostAttachment  = std::make_unique<ButtonAttachment>(audioProcessor.apvts, "airBoost",  airBoostButton);
     lpFreqAttachment    = std::make_unique<SliderAttachment>(audioProcessor.apvts, "lpFreq",    lpFreqSlider);
     lpResAttachment     = std::make_unique<SliderAttachment>(audioProcessor.apvts, "lpRes",     lpResSlider);
@@ -885,25 +892,20 @@ void MoggEditorContent::resized() {
         outputMeterRect = inner.withSizeKeepingCentre(74, inner.getHeight());
     }
 
-    // 3. MOD-Modul: DIRT oben, kleiner BIAS-Knob (1..11) mittig, AIR BOOST darunter
+    // 3. MOD-Modul: zentraler DIRT-Regler + weicher Höhen-Shelf-Boost Button darunter
     {
         auto inner = modModuleRect.reduced(8, 0);
-        inner.removeFromTop(22); // Banner-Höhe
-        auto stack = inner.withSizeKeepingCentre(inner.getWidth(), 294);
+        inner.removeFromTop(26);
+        inner.removeFromBottom(12);
 
-        dirtLabel.setBounds(stack.removeFromTop(15));
-        dirtSlider.setBounds(stack.removeFromTop(116));
+        auto boostRow = inner.removeFromBottom(46);
+        airBoostLabel.setBounds(boostRow.removeFromTop(15));
+        boostRow.removeFromTop(3);
+        airBoostButton.setBounds(boostRow.withSizeKeepingCentre(104, 26));
 
-        stack.removeFromTop(10);
-
-        biasLabel.setBounds(stack.removeFromTop(14));
-        biasSlider.setBounds(stack.removeFromTop(84).withSizeKeepingCentre(92, 84));
-
-        stack.removeFromTop(12);
-
-        airBoostLabel.setBounds(stack.removeFromTop(14));
-        stack.removeFromTop(3);
-        airBoostButton.setBounds(stack.removeFromTop(26).withSizeKeepingCentre(104, 26));
+        auto centerBlock = inner.withSizeKeepingCentre(inner.getWidth(), 144);
+        dirtLabel.setBounds(centerBlock.removeFromTop(18));
+        dirtSlider.setBounds(centerBlock);
     }
 
     // Hilfsfunktion für die SATURATION-Subbox: AMT links neben dem größeren Knob, MODE darunter
