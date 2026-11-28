@@ -4,7 +4,7 @@
 
 namespace {
     // Regler-Hierarchie:
-    // 0 = Standard Moog-Poti (IN/OUT LEVEL, RES, SAT AMT)
+    // 0 = Standard Moog-Poti (IN/OUT LEVEL, RES, SAT AMT, BIAS)
     // 1 = Hero Cutoff-Regler (riesig mit leuchtendem Radial-Skalenkranz)
     // 2 = Zentraler DIRT-Regler (mittelgroß mit Pastell-Rosa->Türkis-Verlauf)
     constexpr int kRoleStandard = 0;
@@ -539,8 +539,9 @@ MoggEditorContent::MoggEditorContent(MoggDualLadderAudioProcessor& p)
     hpSatModeLabel.setColour(juce::Label::textColourId, kSilverMid);
     addAndMakeVisible(hpSatModeLabel);
 
-    // 3. MOD (Zentraler DIRT-Regler + weicher Höhen-Shelf-Boost)
-    setupRotarySlider(dirtSlider, &dirtLabel, "DIRT", kPastelTurquoise, kRoleCenter, juce::Slider::TextBoxBelow, 76, 18);
+    // 3. MOD (DIRT + kleiner BIAS-Regler [1.0 .. 11.0] + weicher Höhen-Shelf-Boost)
+    setupRotarySlider(dirtSlider, &dirtLabel, "DIRT", kPastelTurquoise, kRoleCenter,   juce::Slider::TextBoxBelow, 74, 17);
+    setupRotarySlider(biasSlider, &biasLabel, "BIAS", kPastelPink,      kRoleStandard, juce::Slider::TextBoxBelow, 66, 16);
 
     airBoostLabel.setText("HF SHELF", juce::dontSendNotification);
     airBoostLabel.setJustificationType(juce::Justification::centred);
@@ -601,6 +602,7 @@ MoggEditorContent::MoggEditorContent(MoggDualLadderAudioProcessor& p)
     hpSatAttachment     = std::make_unique<SliderAttachment>(audioProcessor.apvts, "hpSat",     hpSatSlider);
     hpSatModeAttachment = std::make_unique<ComboBoxAttachment>(audioProcessor.apvts, "hpSatMode", hpSatModeBox);
     dirtAttachment      = std::make_unique<SliderAttachment>(audioProcessor.apvts, "dirt",      dirtSlider);
+    biasAttachment      = std::make_unique<SliderAttachment>(audioProcessor.apvts, "bias",      biasSlider);
     airBoostAttachment  = std::make_unique<ButtonAttachment>(audioProcessor.apvts, "airBoost",  airBoostButton);
     lpFreqAttachment    = std::make_unique<SliderAttachment>(audioProcessor.apvts, "lpFreq",    lpFreqSlider);
     lpResAttachment     = std::make_unique<SliderAttachment>(audioProcessor.apvts, "lpRes",     lpResSlider);
@@ -883,20 +885,25 @@ void MoggEditorContent::resized() {
         outputMeterRect = inner.withSizeKeepingCentre(74, inner.getHeight());
     }
 
-    // 3. MOD-Modul: zentraler DIRT-Regler + weicher Höhen-Shelf-Boost Button darunter
+    // 3. MOD-Modul: DIRT oben, kleiner BIAS-Knob (1..11) mittig, AIR BOOST darunter
     {
         auto inner = modModuleRect.reduced(8, 0);
-        inner.removeFromTop(26);
-        inner.removeFromBottom(12);
+        inner.removeFromTop(22); // Banner-Höhe
+        auto stack = inner.withSizeKeepingCentre(inner.getWidth(), 294);
 
-        auto boostRow = inner.removeFromBottom(46);
-        airBoostLabel.setBounds(boostRow.removeFromTop(15));
-        boostRow.removeFromTop(3);
-        airBoostButton.setBounds(boostRow.withSizeKeepingCentre(104, 26));
+        dirtLabel.setBounds(stack.removeFromTop(15));
+        dirtSlider.setBounds(stack.removeFromTop(116));
 
-        auto centerBlock = inner.withSizeKeepingCentre(inner.getWidth(), 144);
-        dirtLabel.setBounds(centerBlock.removeFromTop(18));
-        dirtSlider.setBounds(centerBlock);
+        stack.removeFromTop(10);
+
+        biasLabel.setBounds(stack.removeFromTop(14));
+        biasSlider.setBounds(stack.removeFromTop(84).withSizeKeepingCentre(92, 84));
+
+        stack.removeFromTop(12);
+
+        airBoostLabel.setBounds(stack.removeFromTop(14));
+        stack.removeFromTop(3);
+        airBoostButton.setBounds(stack.removeFromTop(26).withSizeKeepingCentre(104, 26));
     }
 
     // Hilfsfunktion für die SATURATION-Subbox: AMT links neben dem größeren Knob, MODE darunter
