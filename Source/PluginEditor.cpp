@@ -18,17 +18,18 @@ namespace {
     const juce::Colour kSilverMid        { 0xffa7b0bd };
     const juce::Colour kSilverDark       { 0xff4e5561 };
     const juce::Colour kCrispWhite       { 0xfff7f9fc };
+    const juce::Colour kPureWhite        { 0xffffffff };
+    const juce::Colour kMeterGrayLow     { 0xff5a6270 };
 
     // Vintage-Pastell-Farbtöne
     const juce::Colour kPastelPink       { 0xfff28ab2 };
     const juce::Colour kPastelTurquoise  { 0xff7ad7c8 };
-    const juce::Colour kPastelCream      { 0xfff3d399 };
 
     float linearToMeterNorm(float peak) noexcept {
         if (peak <= 1.0e-5f) return 0.0f;
         const float db = juce::Decibels::gainToDecibels(peak, -48.0f);
-        // -48 dBFS -> 0.0, +6 dBFS -> 1.0
-        return juce::jlimit(0.0f, 1.0f, (db + 48.0f) / 54.0f);
+        // -48 dBFS -> 0.0 (Grau), 0 dBFS -> 1.0 (Ganz Weiß)
+        return juce::jlimit(0.0f, 1.0f, (db + 48.0f) / 48.0f);
     }
 
     void drawStereoLedMeter(juce::Graphics& g, juce::Rectangle<int> area, float normL, float normR) {
@@ -72,17 +73,16 @@ namespace {
             const float activeSegs = levels[ch] * static_cast<float>(numSegs);
 
             for (int i = 0; i < numSegs; ++i) {
+                // Kontinuierlicher Verlauf von Grau (unten) bis Reinweiß bei 0 dBFS (oben)
                 const float t = static_cast<float>(i) / static_cast<float>(numSegs - 1);
-                juce::Colour segCol = (t < 0.55f)
-                    ? kPastelTurquoise.interpolatedWith(kPastelCream, t / 0.55f)
-                    : kPastelCream.interpolatedWith(kPastelPink, (t - 0.55f) / 0.45f);
+                const juce::Colour segCol = kMeterGrayLow.interpolatedWith(kPureWhite, t);
 
                 const float y = barsArea.getBottom() - static_cast<float>(i + 1) * segH - static_cast<float>(i) * gapY;
                 auto segRect = juce::Rectangle<float>(x, y, segW, segH);
 
                 const bool isLit = (static_cast<float>(i) + 0.35f) <= activeSegs;
                 if (isLit) {
-                    g.setColour(segCol.withAlpha(0.28f));
+                    g.setColour(segCol.withAlpha(0.24f));
                     g.fillRoundedRectangle(segRect.expanded(1.2f), 1.8f);
                     g.setColour(segCol);
                     g.fillRoundedRectangle(segRect, 1.4f);
@@ -93,7 +93,7 @@ namespace {
             }
         }
 
-        // dBFS-Skalenstriche & Zahlenwerte
+        // dBFS-Skalenstriche & Zahlenwerte (-48 dBFS unten bis 0 dBFS ganz oben)
         struct ScaleMark {
             float db;
             const char* label;
@@ -109,11 +109,11 @@ namespace {
 
         g.setFont(juce::FontOptions(8.2f, juce::Font::bold));
         for (const auto& m : marks) {
-            const float t = juce::jlimit(0.0f, 1.0f, (m.db + 48.0f) / 54.0f);
+            const float t = juce::jlimit(0.0f, 1.0f, (m.db + 48.0f) / 48.0f);
             const float y = barsArea.getBottom() - t * barsArea.getHeight();
             const bool isZero = (m.db == 0.0f);
 
-            g.setColour(isZero ? kCrispWhite : kSilverMid.withAlpha(0.7f));
+            g.setColour(isZero ? kPureWhite : kSilverMid.withAlpha(0.75f));
             g.drawHorizontalLine(static_cast<int>(std::round(y)), scaleArea.getX() + 2.0f, scaleArea.getX() + 5.5f);
 
             g.drawText(m.label,
@@ -686,7 +686,7 @@ void MoggDualLadderAudioProcessorEditor::paint(juce::Graphics& g) {
     drawSatGroupBox(hpSatBoxRect, kPastelPink);
     drawSatGroupBox(lpSatBoxRect, kPastelTurquoise);
 
-    // 8. Live Stereo-LED-Meter inkl. dBFS-Skala in INPUT & OUTPUT
+    // 8. Live Stereo-LED-Meter (Grau bis Reinweiß bei 0 dBFS) in INPUT & OUTPUT
     drawStereoLedMeter(g, inputMeterRect,  dispInL,  dispInR);
     drawStereoLedMeter(g, outputMeterRect, dispOutL, dispOutR);
 }
@@ -778,7 +778,6 @@ void MoggDualLadderAudioProcessorEditor::resized() {
 
         inner.removeFromBottom(4);
 
-        // Mittlere Zeile: AMT links neben dem Regler -> mehr vertikaler Platz für ca. +25% größeren Knob
         amtLabel.setBounds(inner.removeFromLeft(30));
         inner.removeFromLeft(2);
         satSlider.setBounds(inner);
