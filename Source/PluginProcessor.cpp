@@ -186,6 +186,11 @@ void MoggDualLadderAudioProcessor::prepareToPlay(double sampleRate, int samplesP
     filterL.reset();
     filterR.reset();
 
+    inPeakL.store(0.0f, std::memory_order_relaxed);
+    inPeakR.store(0.0f, std::memory_order_relaxed);
+    outPeakL.store(0.0f, std::memory_order_relaxed);
+    outPeakR.store(0.0f, std::memory_order_relaxed);
+
     setLatencySamples(static_cast<int>(oversampling.getLatencyInSamples()));
 }
 
@@ -204,9 +209,10 @@ void MoggDualLadderAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer
 
     const int totalNumInputChannels  = getTotalNumInputChannels();
     const int totalNumOutputChannels = getTotalNumOutputChannels();
+    const int numBlockSamples        = buffer.getNumSamples();
 
     for (int i = totalNumInputChannels; i < totalNumOutputChannels; ++i) {
-        buffer.clear(i, 0, buffer.getNumSamples());
+        buffer.clear(i, 0, numBlockSamples);
     }
 
     const float inGain      = inGainParam->load();
@@ -224,6 +230,19 @@ void MoggDualLadderAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer
     const float dirt        = dirtParam->load();
     const int   slopeIndex  = std::clamp(static_cast<int>(std::lround(slopeParam->load())), 0, 3);
     const auto  slope       = static_cast<MoggDualLadderFilter::Slope>(slopeIndex);
+
+    // Input-Metering (inkl. IN LEVEL Gain-Stufe)
+    const float inGainLinear = juce::Decibels::decibelsToGain(inGain);
+    if (totalNumInputChannels >= 1 && numBlockSamples > 0) {
+        const float peakL = buffer.getMagnitude(0, 0, numBlockSamples) * inGainLinear;
+        storeMaxPeak(inPeakL, peakL);
+        if (totalNumInputChannels >= 2) {
+            const float peakR = buffer.getMagnitude(1, 0, numBlockSamples) * inGainLinear;
+            storeMaxPeak(inPeakR, peakR);
+        } else {
+            storeMaxPeak(inPeakR, peakL);
+        }
+    }
 
     filterL.setParameters(lpFreq, hpFreq, lpRes, hpRes,
                           hpSat, hpSatMode,
@@ -255,6 +274,18 @@ void MoggDualLadderAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer
     }
 
     oversampling.processSamplesDown(block);
+
+    // Output-Metering
+    if (totalNumOutputChannels >= 1 && numBlockSamples > 0) {
+        const float peakL = buffer.getMagnitude(0, 0, numBlockSamples);
+        storeMaxPeak(outPeakL, peakL);
+        if (totalNumOutputChannels >= 2) {
+            const float peakR = buffer.getMagnitude(1, 0, numBlockSamples);
+            storeMaxPeak(outPeakR, peakR);
+        } else {
+            storeMaxPeak(outPeakR, peakL);
+        }
+    }
 }
 
 juce::AudioProcessorEditor* MoggDualLadderAudioProcessor::createEditor() {
