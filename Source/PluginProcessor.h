@@ -88,116 +88,113 @@ private:
         }
     };
 
-    // Aggressiv abgehackte Starved-Bias Stufe (4x-Oversampling, gekoppelt mit Saturation & Dirt)
+    // Sauberes Starved-Capacitor Envelope-Choking (ohne zusätzliche Verzerrung)
     struct StarvedBiasStage {
+        float fastEnv          = 0.0f;
         float peakRefEnv       = 0.0f;
-        float sagEnv           = 0.0f;
+        float capEnergy        = 1.0f;
         float sputterEnv       = 0.0f;
-        float gateGain         = 0.0f;
+        float gateGain         = 1.0f;
         bool  gateOpen         = false;
-        float dcPrevIn         = 0.0f;
-        float dcPrevOut        = 0.0f;
+        bool  capStarved       = false;
 
+        float osSampleRate     = 176400.0f;
+        float fastAttackCoeff  = 0.02f;
+        float fastReleaseCoeff = 0.001f;
         float peakAttackCoeff  = 0.01f;
         float peakReleaseCoeff = 0.0001f;
-        float sagAttackCoeff   = 0.01f;
-        float sagReleaseCoeff  = 0.0004f;
-        float gateSmoothCoeff  = 0.05f;
-        float sputterCoeff     = 0.004f;
-        float dcBlockerCoeff   = 0.9995f;
+        float gateOpenCoeff    = 0.01f;
+        float gateCloseCoeff   = 0.005f;
+        float sputterCoeff     = 0.003f;
         uint32_t rngState      = 0x12345678u;
 
         void prepare(double oversampledRate, uint32_t seed) noexcept {
             rngState = seed;
             if (oversampledRate > 0.0) {
-                const float fs = static_cast<float>(oversampledRate);
-                peakAttackCoeff  = 1.0f - std::exp(-1.0f / (0.0020f * fs));
-                peakReleaseCoeff = 1.0f - std::exp(-1.0f / (0.3200f * fs));
-                sagAttackCoeff   = 1.0f - std::exp(-1.0f / (0.0012f * fs));
-                sagReleaseCoeff  = 1.0f - std::exp(-1.0f / (0.0650f * fs));
-                gateSmoothCoeff  = 1.0f - std::exp(-1.0f / (0.00035f * fs));
-                sputterCoeff     = 1.0f - std::exp(-juce::MathConstants<float>::twoPi * 115.0f / fs);
-                dcBlockerCoeff   = 1.0f - (juce::MathConstants<float>::twoPi * 14.0f / fs);
+                osSampleRate     = static_cast<float>(oversampledRate);
+                fastAttackCoeff  = 1.0f - std::exp(-1.0f / (0.0005f * osSampleRate));
+                fastReleaseCoeff = 1.0f - std::exp(-1.0f / (0.0080f * osSampleRate));
+                peakAttackCoeff  = 1.0f - std::exp(-1.0f / (0.0020f * osSampleRate));
+                peakReleaseCoeff = 1.0f - std::exp(-1.0f / (0.3500f * osSampleRate));
+                gateOpenCoeff    = 1.0f - std::exp(-1.0f / (0.0008f * osSampleRate));
+                gateCloseCoeff   = 1.0f - std::exp(-1.0f / (0.0018f * osSampleRate));
+                sputterCoeff     = 1.0f - std::exp(-juce::MathConstants<float>::twoPi * 90.0f / osSampleRate);
             }
             reset();
         }
 
         void reset() noexcept {
+            fastEnv    = 0.0f;
             peakRefEnv = 0.0f;
-            sagEnv     = 0.0f;
+            capEnergy  = 1.0f;
             sputterEnv = 0.0f;
-            gateGain   = 0.0f;
+            gateGain   = 1.0f;
             gateOpen   = false;
-            dcPrevIn   = 0.0f;
-            dcPrevOut  = 0.0f;
+            capStarved = false;
         }
 
         float processSample(float input, float u, float satNorm, float dirtNorm) noexcept {
             const float absIn = std::abs(input);
 
-            // 1. Lokale Pegelreferenz (damit auch leise Signale sauber zerhackt werden)
+            // 1. Glatte Signal-Hüllkurve (verhindert Audio-Rate-Chopping / Verzerrung)
+            const float fCoeff = (absIn > fastEnv) ? fastAttackCoeff : fastReleaseCoeff;
+            fastEnv += fCoeff * (absIn - fastEnv);
+
+            // 2. Lokale Pegelreferenz (damit leise & laute Signale gleichmäßig choken)
             const float pCoeff = (absIn > peakRefEnv) ? peakAttackCoeff : peakReleaseCoeff;
             peakRefEnv += pCoeff * (absIn - peakRefEnv);
-            const float levelScale = std::max(0.08f, peakRefEnv);
+            const float levelScale = std::max(0.02f, peakRefEnv);
 
-            // 2. Schneller Voltage-Sag / Capacitor-Choke (lässt den Ton nach Transienten ersticken)
-            const float sCoeff = (absIn > sagEnv) ? sagAttackCoeff : sagReleaseCoeff;
-            sagEnv += sCoeff * (absIn - sagEnv);
-
-            // 3. Dirt-Sputter (unregelmäßige Batterie-Aussetzer bei aufgedrehtem DIRT)
-            float dirtMod = 0.0f;
+            // 3. Dirt-gekoppelte Versorgungsschwankungen (nur Hüllkurven-Modulation)
+            float dirtDip = 0.0f;
             if (dirtNorm > 0.0001f) {
                 rngState = rngState * 1664525u + 1013904223u;
                 const float white = (static_cast<float>(rngState >> 8) / 8388608.0f) - 1.0f;
-                const float spike = (std::abs(white) > 0.84f) ? (std::abs(white) * 2.6f) : (white * 0.25f);
+                const float spike = (std::abs(white) > 0.86f) ? (std::abs(white) * 2.2f) : (white * 0.20f);
                 sputterEnv += sputterCoeff * (spike - sputterEnv);
-                const float dirtJitter = levelScale * 0.65f * std::pow(u, 1.10f);
-                dirtMod = dirtJitter * dirtNorm * std::max(0.0f, sputterEnv);
+                dirtDip = dirtNorm * std::pow(u, 1.15f) * std::max(0.0f, sputterEnv);
             } else {
                 sputterEnv = 0.0f;
             }
 
-            // 4. Asymmetrische Transistor-Sperrschicht (negative Halbwelle verhungert zuerst)
-            const float basePosThresh = levelScale * (0.48f * std::pow(u, 1.15f));
-            const float sagDepth      = levelScale * (0.68f * std::pow(u, 1.10f));
-            const float dynamicSag    = sagDepth * (0.45f + 0.55f * satNorm) * std::min(sagEnv / levelScale, 1.6f);
+            // 4. Schwellwert-Choke (schneidet Tails, Sustain & leise Passagen ab)
+            const float chokeRatio  = std::min(0.92f, 0.88f * std::pow(u, 1.10f) + 0.35f * dirtDip);
+            const float openThresh  = levelScale * chokeRatio;
+            const float closeThresh = openThresh * 0.78f;
 
-            const float threshPosOpen  = basePosThresh + dynamicSag + dirtMod;
-            const float threshNegOpen  = threshPosOpen + levelScale * (0.88f * std::pow(u, 1.05f));
-
-            const float activeThreshOpen  = (input >= 0.0f) ? threshPosOpen : threshNegOpen;
-            const float activeThreshClose = activeThreshOpen * 0.70f;
-
-            // 5. Snap-Gate mit Hysterese (abruptes Auf- und Zuschnappen)
             if (gateOpen) {
-                if (absIn < activeThreshClose) gateOpen = false;
+                if (fastEnv < closeThresh) gateOpen = false;
             } else {
-                if (absIn > activeThreshOpen) gateOpen = true;
+                if (fastEnv > openThresh) gateOpen = true;
             }
 
-            const float targetGate = gateOpen ? 1.0f : 0.0f;
-            gateGain += gateSmoothCoeff * (targetGate - gateGain);
+            // 5. Starved Capacitor (entlädt sich während eines Tons und würgt ihn ab)
+            const float capStrength = juce::jlimit(0.0f, 1.0f, (u - 0.25f) / 0.75f);
+            if (capStrength > 0.001f) {
+                const float drainSec    = juce::jmap(capStrength, 0.140f, 0.016f) / (1.0f + 0.55f * satNorm + 0.65f * dirtDip);
+                const float rechargeSec = juce::jmap(capStrength, 0.020f, 0.055f);
 
-            float chopped = 0.0f;
-            if (absIn > activeThreshClose) {
-                const float excess = absIn - activeThreshClose;
-                chopped = (input >= 0.0f) ? excess : -excess;
+                if (gateOpen && !capStarved) {
+                    const float drainStep = 1.0f / std::max(1.0f, drainSec * osSampleRate);
+                    capEnergy = std::max(0.0f, capEnergy - drainStep);
+                    if (capEnergy <= 0.22f) capStarved = true;
+                } else {
+                    const float rechargeStep = 1.0f / std::max(1.0f, rechargeSec * osSampleRate);
+                    capEnergy = std::min(1.0f, capEnergy + rechargeStep);
+                    if (capEnergy >= 0.44f) capStarved = false;
+                }
+            } else {
+                capEnergy  = 1.0f;
+                capStarved = false;
             }
-            float gated = chopped * gateGain;
 
-            // 6. Starved Rail Sättigung & Makeup-Gain für druckvolle abgehackte Impulse
-            const float railCeiling = 1.35f - 0.88f * std::pow(u, 1.10f);
-            if (gated > 0.0f) {
-                gated = railCeiling * std::tanh(gated / railCeiling);
-            }
+            // 6. Sauberes VCA-Gating (null zusätzliche harmonische Verzerrung)
+            const bool shouldPass = gateOpen && !capStarved;
+            const float targetGain = shouldPass ? 1.0f : 0.0f;
+            const float gCoeff = (targetGain > gateGain) ? gateOpenCoeff : gateCloseCoeff;
+            gateGain += gCoeff * (targetGain - gateGain);
 
-            const float makeupGain = 1.0f + 1.15f * std::pow(u, 1.10f);
-            float dcOut = gated - dcPrevIn + dcBlockerCoeff * dcPrevOut;
-            if (std::abs(dcOut) < 1.0e-15f) dcOut = 0.0f;
-            dcPrevIn  = gated;
-            dcPrevOut = dcOut;
-
-            return dcOut * makeupGain;
+            return input * gateGain;
         }
     };
 
