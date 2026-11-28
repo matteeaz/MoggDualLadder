@@ -4,6 +4,7 @@
 #include <juce_dsp/juce_dsp.h>
 #include <atomic>
 #include <cmath>
+#include <cstdint>
 #include "MoggDualLadderFilter.h"
 
 class MoggDualLadderAudioProcessor : public juce::AudioProcessor,
@@ -87,6 +88,92 @@ private:
         }
     };
 
+    // Starved-Bias Stufe (läuft im 4x-Oversampling-Pfad, gekoppelt mit Saturation & Dirt)
+    struct StarvedBiasStage {
+        float sagEnv          = 0.0f;
+        float sputterEnv      = 0.0f;
+        float dcPrevIn        = 0.0f;
+        float dcPrevOut       = 0.0f;
+        float sagAttackCoeff  = 0.01f;
+        float sagReleaseCoeff = 0.0005f;
+        float sputterCoeff    = 0.006f;
+        float dcBlockerCoeff  = 0.9997f;
+        uint32_t rngState     = 0x12345678u;
+
+        void prepare(double oversampledRate, uint32_t seed) noexcept {
+            rngState = seed;
+            if (oversampledRate > 0.0) {
+                sagAttackCoeff  = 1.0f - std::exp(-1.0f / (0.0015f * static_cast<float>(oversampledRate)));
+                sagReleaseCoeff = 1.0f - std::exp(-1.0f / (0.0450f * static_cast<float>(oversampledRate)));
+                sputterCoeff    = 1.0f - std::exp(-juce::MathConstants<float>::twoPi * 180.0f / static_cast<float>(oversampledRate));
+                dcBlockerCoeff  = 1.0f - (juce::MathConstants<float>::twoPi * 6.0f / static_cast<float>(oversampledRate));
+            }
+            reset();
+        }
+
+        void reset() noexcept {
+            sagEnv     = 0.0f;
+            sputterEnv = 0.0f;
+            dcPrevIn   = 0.0f;
+            dcPrevOut  = 0.0f;
+        }
+
+        float processSample(float input, float u, float satNorm, float dirtNorm) noexcept {
+            // 1. Schneller Envelope-Follower für Voltage Sag (knickt nach lauten Transienten weg)
+            const float absIn = std::abs(input);
+            const float envCoeff = (absIn > sagEnv) ? sagAttackCoeff : sagReleaseCoeff;
+            sagEnv += envCoeff * (absIn - sagEnv);
+
+            // 2. Dirt-Sputter (unregelmäßiges Bias-Stottern bei aufgedrehtem DIRT)
+            float dirtMod = 0.0f;
+            if (dirtNorm > 0.0001f) {
+                rngState = rngState * 1664525u + 1013904223u;
+                const float white = (static_cast<float>(rngState >> 8) / 8388608.0f) - 1.0f;
+                const float spike = (std::abs(white) > 0.91f) ? (white * 1.85f) : (white * 0.35f);
+                sputterEnv += sputterCoeff * (spike - sputterEnv);
+                const float dirtJitter = 0.15f * std::pow(u, 1.35f);
+                dirtMod = dirtJitter * dirtNorm * sputterEnv;
+            } else {
+                sputterEnv = 0.0f;
+            }
+
+            // 3. Skalierungskurven für u in [0, 1] (entspricht Knob 1.0 .. 11.0)
+            const float dcBias      = 0.34f * std::pow(u, 1.45f);
+            const float baseGate    = 0.28f * std::pow(u, 1.75f);
+            const float sagDepth    = 0.30f * std::pow(u, 1.35f);
+            const float dynamicSag  = sagDepth * (0.35f + 0.65f * satNorm) * std::min(sagEnv * 1.6f, 1.25f);
+            const float threshold   = std::max(0.0f, baseGate + dynamicSag + dirtMod);
+            const float knee        = threshold * 0.065f + 1.0e-6f;
+
+            // 4. Arbeitspunkt verschieben & unterhalb der Schwelle abhacken (C1-glattes Gating)
+            const float shifted = input - dcBias;
+            const float mag     = std::abs(shifted);
+            float gated = 0.0f;
+
+            if (mag > threshold) {
+                const float excess = mag - threshold;
+                const float shaped = (excess < knee) ? ((excess * excess) / (2.0f * knee))
+                                                     : (excess - 0.5f * knee);
+                gated = (shifted >= 0.0f) ? shaped : -shaped;
+            }
+
+            // 5. Asymmetrische Begrenzung an der abfallenden Versorgungsschiene
+            const float railCeiling = 1.45f - 0.97f * std::pow(u, 1.15f);
+            if (gated > 0.0f) {
+                gated = railCeiling * std::tanh(gated / railCeiling);
+            }
+
+            // 6. DC-Blocker & Pegel-Ausgleich
+            const float makeupGain = 1.0f + 0.42f * std::pow(u, 1.20f);
+            float dcOut = gated - dcPrevIn + dcBlockerCoeff * dcPrevOut;
+            if (std::abs(dcOut) < 1.0e-15f) dcOut = 0.0f;
+            dcPrevIn  = gated;
+            dcPrevOut = dcOut;
+
+            return dcOut * makeupGain;
+        }
+    };
+
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
     static void storeMaxPeak(std::atomic<float>& target, float peak) noexcept {
@@ -96,6 +183,10 @@ private:
 
     MoggDualLadderFilter filterL;
     MoggDualLadderFilter filterR;
+
+    StarvedBiasStage biasStageL;
+    StarvedBiasStage biasStageR;
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> biasNormSmoothed;
 
     HighShelfBiquad airShelfL;
     HighShelfBiquad airShelfR;
@@ -117,6 +208,7 @@ private:
     std::atomic<float>* lpSatParam      = nullptr;
     std::atomic<float>* lpSatModeParam  = nullptr;
     std::atomic<float>* dirtParam       = nullptr;
+    std::atomic<float>* biasParam       = nullptr;
     std::atomic<float>* airBoostParam   = nullptr;
     std::atomic<float>* linkParam       = nullptr;
     std::atomic<float>* slopeParam      = nullptr;
