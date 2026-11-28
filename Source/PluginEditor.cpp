@@ -11,21 +11,23 @@ namespace {
     constexpr int kRoleHero     = 1;
     constexpr int kRoleCenter   = 2;
 
-    const juce::Colour kChassisBlack   { 0xff0d0e12 };
-    const juce::Colour kModuleDark     { 0xff111318 };
-    const juce::Colour kRecessBlack    { 0xff08090c };
-    const juce::Colour kSilverLight    { 0xffe4e9f0 };
-    const juce::Colour kSilverMid      { 0xffa7b0bd };
-    const juce::Colour kSilverDark     { 0xff4e5561 };
-    const juce::Colour kCrispWhite     { 0xfff7f9fc };
-    const juce::Colour kNeonPink       { 0xffff1e8a };
-    const juce::Colour kNeonTurquoise  { 0xff00f5d4 };
-    const juce::Colour kMeterAmber     { 0xffffd166 };
+    const juce::Colour kChassisBlack     { 0xff0d0e12 };
+    const juce::Colour kModuleDark       { 0xff111318 };
+    const juce::Colour kRecessBlack      { 0xff08090c };
+    const juce::Colour kSilverLight      { 0xffe4e9f0 };
+    const juce::Colour kSilverMid        { 0xffa7b0bd };
+    const juce::Colour kSilverDark       { 0xff4e5561 };
+    const juce::Colour kCrispWhite       { 0xfff7f9fc };
+
+    // Vintage-Pastell-Farbtöne
+    const juce::Colour kPastelPink       { 0xfff28ab2 };
+    const juce::Colour kPastelTurquoise  { 0xff7ad7c8 };
+    const juce::Colour kPastelCream      { 0xfff3d399 };
 
     float linearToMeterNorm(float peak) noexcept {
         if (peak <= 1.0e-5f) return 0.0f;
         const float db = juce::Decibels::gainToDecibels(peak, -48.0f);
-        // -48 dB -> 0.0, +6 dB -> 1.0
+        // -48 dBFS -> 0.0, +6 dBFS -> 1.0
         return juce::jlimit(0.0f, 1.0f, (db + 48.0f) / 54.0f);
     }
 
@@ -36,40 +38,91 @@ namespace {
         g.setColour(kSilverDark.withAlpha(0.55f));
         g.drawRoundedRectangle(box, 4.0f, 1.0f);
 
-        auto inner = box.reduced(6.0f, 7.0f);
+        auto inner = box.reduced(5.0f, 5.0f);
+
+        // Kopfzeile: "dBFS"
+        auto unitRow = inner.removeFromTop(12.0f);
+        g.setColour(kSilverMid);
+        g.setFont(juce::FontOptions(8.5f, juce::Font::bold));
+        g.drawText("dBFS", unitRow.toNearestInt(), juce::Justification::centred, false);
+
+        // Fußzeile: Kanal-Kennung L / R unterhalb der LED-Spalten
+        auto chRow = inner.removeFromBottom(11.0f);
+        inner.reduce(0.0f, 2.0f);
+
+        // Links: 2 LED-Spalten (L/R), Rechts: dBFS-Skala
+        auto barsArea  = inner.removeFromLeft(28.0f);
+        auto scaleArea = inner;
+
+        g.setColour(kSilverMid.withAlpha(0.8f));
+        g.setFont(juce::FontOptions(8.0f, juce::Font::bold));
+        g.drawText("L", static_cast<int>(barsArea.getX()), static_cast<int>(chRow.getY()), 12, 11, juce::Justification::centred, false);
+        g.drawText("R", static_cast<int>(barsArea.getX() + 15.0f), static_cast<int>(chRow.getY()), 12, 11, juce::Justification::centred, false);
+
         constexpr int numSegs = 12;
-        const float gapY   = 3.0f;
-        const float segH   = (inner.getHeight() - gapY * static_cast<float>(numSegs - 1)) / static_cast<float>(numSegs);
-        const float colGap = 5.0f;
-        const float segW   = (inner.getWidth() - colGap) * 0.5f;
+        const float gapY   = 2.8f;
+        const float segH   = (barsArea.getHeight() - gapY * static_cast<float>(numSegs - 1)) / static_cast<float>(numSegs);
+        const float colGap = 3.0f;
+        const float segW   = (barsArea.getWidth() - colGap) * 0.5f;
 
         const float levels[2] = { normL, normR };
 
         for (int ch = 0; ch < 2; ++ch) {
-            const float x = inner.getX() + static_cast<float>(ch) * (segW + colGap);
+            const float x = barsArea.getX() + static_cast<float>(ch) * (segW + colGap);
             const float activeSegs = levels[ch] * static_cast<float>(numSegs);
 
             for (int i = 0; i < numSegs; ++i) {
-                // i = 0 unten (Türkis), Mitte (Amber/Weiß), oben (Pink)
                 const float t = static_cast<float>(i) / static_cast<float>(numSegs - 1);
                 juce::Colour segCol = (t < 0.55f)
-                    ? kNeonTurquoise.interpolatedWith(kMeterAmber, t / 0.55f)
-                    : kMeterAmber.interpolatedWith(kNeonPink, (t - 0.55f) / 0.45f);
+                    ? kPastelTurquoise.interpolatedWith(kPastelCream, t / 0.55f)
+                    : kPastelCream.interpolatedWith(kPastelPink, (t - 0.55f) / 0.45f);
 
-                const float y = inner.getBottom() - static_cast<float>(i + 1) * segH - static_cast<float>(i) * gapY;
+                const float y = barsArea.getBottom() - static_cast<float>(i + 1) * segH - static_cast<float>(i) * gapY;
                 auto segRect = juce::Rectangle<float>(x, y, segW, segH);
 
                 const bool isLit = (static_cast<float>(i) + 0.35f) <= activeSegs;
                 if (isLit) {
-                    g.setColour(segCol.withAlpha(0.32f));
-                    g.fillRoundedRectangle(segRect.expanded(1.5f), 2.0f);
+                    g.setColour(segCol.withAlpha(0.28f));
+                    g.fillRoundedRectangle(segRect.expanded(1.2f), 1.8f);
                     g.setColour(segCol);
-                    g.fillRoundedRectangle(segRect, 1.5f);
+                    g.fillRoundedRectangle(segRect, 1.4f);
                 } else {
                     g.setColour(segCol.withAlpha(0.11f));
-                    g.fillRoundedRectangle(segRect, 1.5f);
+                    g.fillRoundedRectangle(segRect, 1.4f);
                 }
             }
+        }
+
+        // dBFS-Skalenstriche & Zahlenwerte
+        struct ScaleMark {
+            float db;
+            const char* label;
+        };
+        constexpr ScaleMark marks[] = {
+            {   0.0f, "0"   },
+            {  -6.0f, "-6"  },
+            { -12.0f, "-12" },
+            { -24.0f, "-24" },
+            { -36.0f, "-36" },
+            { -48.0f, "-48" }
+        };
+
+        g.setFont(juce::FontOptions(8.2f, juce::Font::bold));
+        for (const auto& m : marks) {
+            const float t = juce::jlimit(0.0f, 1.0f, (m.db + 48.0f) / 54.0f);
+            const float y = barsArea.getBottom() - t * barsArea.getHeight();
+            const bool isZero = (m.db == 0.0f);
+
+            g.setColour(isZero ? kCrispWhite : kSilverMid.withAlpha(0.7f));
+            g.drawHorizontalLine(static_cast<int>(std::round(y)), scaleArea.getX() + 2.0f, scaleArea.getX() + 5.5f);
+
+            g.drawText(m.label,
+                       static_cast<int>(scaleArea.getX() + 7.0f),
+                       static_cast<int>(std::round(y)) - 5,
+                       static_cast<int>(scaleArea.getWidth() - 7.0f),
+                       10,
+                       juce::Justification::centredLeft,
+                       false);
         }
     }
 
@@ -94,7 +147,7 @@ namespace {
 MoggLookAndFeel::MoggLookAndFeel() {
     setColour(juce::PopupMenu::backgroundColourId, kModuleDark);
     setColour(juce::PopupMenu::textColourId, kCrispWhite);
-    setColour(juce::PopupMenu::highlightedBackgroundColourId, kNeonTurquoise.withAlpha(0.28f));
+    setColour(juce::PopupMenu::highlightedBackgroundColourId, kPastelTurquoise.withAlpha(0.28f));
     setColour(juce::PopupMenu::highlightedTextColourId, kCrispWhite);
 }
 
@@ -126,13 +179,13 @@ void MoggLookAndFeel::drawRotarySlider(juce::Graphics& g, int x, int y, int widt
             const float cosA = -std::cos(a);
 
             if (active) {
-                g.setColour(accent.withAlpha(0.28f));
+                g.setColour(accent.withAlpha(0.25f));
                 g.drawLine(centre.x + sinA * (tickInner - 1.0f),
                            centre.y + cosA * (tickInner - 1.0f),
                            centre.x + sinA * (tickOuter + 1.0f),
                            centre.y + cosA * (tickOuter + 1.0f),
-                           3.4f);
-                g.setColour(kCrispWhite.interpolatedWith(accent, 0.45f));
+                           3.2f);
+                g.setColour(kCrispWhite.interpolatedWith(accent, 0.55f));
             } else {
                 g.setColour(accent.withAlpha(0.24f));
             }
@@ -145,7 +198,7 @@ void MoggLookAndFeel::drawRotarySlider(juce::Graphics& g, int x, int y, int widt
         }
     }
 
-    // 2. Neon-Leuchtring um den Regler
+    // 2. Vintage-Pastell-Leuchtring um den Regler
     const float arcRadius = radius - (isHero ? 14.5f : (isCenter ? 6.0f : 4.5f));
     const float arcWidth  = isHero ? 4.2f : (isCenter ? 3.5f : 2.6f);
 
@@ -159,18 +212,18 @@ void MoggLookAndFeel::drawRotarySlider(juce::Graphics& g, int x, int y, int widt
         valArc.addCentredArc(centre.x, centre.y, arcRadius, arcRadius, 0.0f, rotaryStartAngle, angle, true);
 
         if (isCenter) {
-            juce::ColourGradient glowGrad(kNeonPink.withAlpha(0.32f), bounds.getX(), centre.y,
-                                          kNeonTurquoise.withAlpha(0.32f), bounds.getRight(), centre.y, false);
+            juce::ColourGradient glowGrad(kPastelPink.withAlpha(0.28f), bounds.getX(), centre.y,
+                                          kPastelTurquoise.withAlpha(0.28f), bounds.getRight(), centre.y, false);
             g.setGradientFill(glowGrad);
-            g.strokePath(valArc, juce::PathStrokeType(arcWidth + 5.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+            g.strokePath(valArc, juce::PathStrokeType(arcWidth + 4.8f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
-            juce::ColourGradient arcGrad(kNeonPink, bounds.getX(), centre.y,
-                                         kNeonTurquoise, bounds.getRight(), centre.y, false);
+            juce::ColourGradient arcGrad(kPastelPink, bounds.getX(), centre.y,
+                                         kPastelTurquoise, bounds.getRight(), centre.y, false);
             g.setGradientFill(arcGrad);
             g.strokePath(valArc, juce::PathStrokeType(arcWidth, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
         } else {
-            g.setColour(accent.withAlpha(isHero ? 0.34f : 0.25f));
-            g.strokePath(valArc, juce::PathStrokeType(arcWidth + (isHero ? 7.0f : 4.2f),
+            g.setColour(accent.withAlpha(isHero ? 0.30f : 0.22f));
+            g.strokePath(valArc, juce::PathStrokeType(arcWidth + (isHero ? 6.5f : 4.0f),
                                                       juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
             g.setColour(accent);
             g.strokePath(valArc, juce::PathStrokeType(arcWidth, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
@@ -257,9 +310,9 @@ void MoggLookAndFeel::drawButtonBackground(juce::Graphics& g, juce::Button& butt
     auto bounds = button.getLocalBounds().toFloat().reduced(1.0f);
     const bool isOn = button.getToggleState();
 
-    juce::Colour ledCol = kNeonPink;
+    juce::Colour ledCol = kPastelPink;
     if (button.getButtonText() == "24 dB" || button.getButtonText() == "48 dB") {
-        ledCol = kNeonTurquoise;
+        ledCol = kPastelTurquoise;
     }
 
     g.setColour(isOn ? juce::Colour(0xff1d2028) : (shouldDrawButtonAsHighlighted ? juce::Colour(0xff191c23) : kRecessBlack));
@@ -268,11 +321,10 @@ void MoggLookAndFeel::drawButtonBackground(juce::Graphics& g, juce::Button& butt
     g.setColour(isOn ? ledCol.withAlpha(0.85f) : kSilverDark.withAlpha(0.65f));
     g.drawRoundedRectangle(bounds, 3.5f, isOn ? 1.2f : 0.9f);
 
-    // Kleiner Hardware-LED-Punkt unterhalb des Textes
     const float cx = bounds.getCentreX();
     const float cy = bounds.getBottom() - 6.0f;
     if (isOn) {
-        g.setColour(ledCol.withAlpha(0.38f));
+        g.setColour(ledCol.withAlpha(0.32f));
         g.fillEllipse(cx - 4.5f, cy - 4.5f, 9.0f, 9.0f);
         g.setColour(ledCol);
     } else {
@@ -298,8 +350,8 @@ void MoggLookAndFeel::drawToggleButton(juce::Graphics& g, juce::ToggleButton& bu
     g.fillRoundedRectangle(bounds, 4.0f);
 
     if (isOn) {
-        juce::ColourGradient borderGrad(kNeonPink, bounds.getX(), bounds.getY(),
-                                        kNeonTurquoise, bounds.getRight(), bounds.getBottom(), false);
+        juce::ColourGradient borderGrad(kPastelPink, bounds.getX(), bounds.getY(),
+                                        kPastelTurquoise, bounds.getRight(), bounds.getBottom(), false);
         g.setGradientFill(borderGrad);
         g.drawRoundedRectangle(bounds, 4.0f, 1.3f);
     } else {
@@ -307,8 +359,7 @@ void MoggLookAndFeel::drawToggleButton(juce::Graphics& g, juce::ToggleButton& bu
         g.drawRoundedRectangle(bounds, 4.0f, 1.0f);
     }
 
-    // Kleiner Hardware-Wippschalter links im Button
-    auto switchSlot = bounds.removeFromLeft(30.0f).reduced(5.0f, 6.0f);
+    auto switchSlot = bounds.removeFromLeft(28.0f).reduced(5.0f, 6.0f);
     g.setColour(kChassisBlack);
     g.fillRoundedRectangle(switchSlot, 2.5f);
     g.setColour(kSilverDark);
@@ -316,10 +367,10 @@ void MoggLookAndFeel::drawToggleButton(juce::Graphics& g, juce::ToggleButton& bu
 
     auto thumb = isOn ? switchSlot.removeFromRight(switchSlot.getWidth() * 0.55f)
                       : switchSlot.removeFromLeft(switchSlot.getWidth() * 0.55f);
-    g.setColour(isOn ? kNeonPink : kSilverMid);
+    g.setColour(isOn ? kPastelPink : kSilverMid);
     g.fillRoundedRectangle(thumb.reduced(1.0f), 2.0f);
 
-    g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
+    g.setFont(juce::FontOptions(10.8f, juce::Font::bold));
     g.setColour(isOn ? kCrispWhite : kSilverLight);
     g.drawText(button.getButtonText(), bounds.reduced(2.0f, 0.0f), juce::Justification::centredLeft, false);
 }
@@ -352,15 +403,16 @@ MoggDualLadderAudioProcessorEditor::MoggDualLadderAudioProcessorEditor(MoggDualL
 {
     setLookAndFeel(&moggLookAndFeel);
 
-    // 1. INPUT & OUTPUT (jeweils genau 1 Poti + 1 Stereo-Meter)
-    setupRotarySlider(inGainSlider,  &inGainLabel,  "IN LEVEL",  kNeonPink,      kRoleStandard, juce::Slider::TextBoxBelow, 74, 17);
-    setupRotarySlider(outGainSlider, &outGainLabel, "OUT LEVEL", kNeonTurquoise, kRoleStandard, juce::Slider::TextBoxBelow, 74, 17);
+    // 1. INPUT & OUTPUT (jeweils 1 Poti + 1 Stereo-Meter mit dBFS-Skala)
+    setupRotarySlider(inGainSlider,  &inGainLabel,  "IN LEVEL",  kPastelPink,      kRoleStandard, juce::Slider::TextBoxBelow, 74, 17);
+    setupRotarySlider(outGainSlider, &outGainLabel, "OUT LEVEL", kPastelTurquoise, kRoleStandard, juce::Slider::TextBoxBelow, 74, 17);
 
-    // 2. HIGHPASS (Riesiger Hero-Cutoff + HP RES + SATURATION-Gruppe [AMT + MODE])
-    setupRotarySlider(hpFreqSlider, nullptr, "", kNeonPink, kRoleHero, juce::Slider::TextBoxBelow, 88, 19);
-    setupRotarySlider(hpResSlider,  &hpResLabel,    "HP RES", kNeonPink, kRoleStandard, juce::Slider::TextBoxBelow, 72, 17);
-    setupRotarySlider(hpSatSlider,  &hpSatAmtLabel, "AMT",    kNeonPink, kRoleStandard, juce::Slider::TextBoxRight, 46, 17);
-    setupSatModeBox(hpSatModeBox, kNeonPink);
+    // 2. HIGHPASS (Hero-Cutoff + HP RES + SATURATION-Gruppe [AMT links neben dem Knob + MODE])
+    setupRotarySlider(hpFreqSlider, nullptr, "", kPastelPink, kRoleHero, juce::Slider::TextBoxBelow, 88, 19);
+    setupRotarySlider(hpResSlider,  &hpResLabel,    "HP RES", kPastelPink, kRoleStandard, juce::Slider::TextBoxBelow, 72, 17);
+    setupRotarySlider(hpSatSlider,  &hpSatAmtLabel, "AMT",    kPastelPink, kRoleStandard, juce::Slider::TextBoxRight, 42, 17);
+    hpSatAmtLabel.setJustificationType(juce::Justification::centredRight);
+    setupSatModeBox(hpSatModeBox, kPastelPink);
 
     hpSatModeLabel.setText("MODE", juce::dontSendNotification);
     hpSatModeLabel.setJustificationType(juce::Justification::centredLeft);
@@ -369,13 +421,14 @@ MoggDualLadderAudioProcessorEditor::MoggDualLadderAudioProcessorEditor(MoggDualL
     addAndMakeVisible(hpSatModeLabel);
 
     // 3. MOD (Zentraler DIRT-Regler)
-    setupRotarySlider(dirtSlider, &dirtLabel, "DIRT", kNeonTurquoise, kRoleCenter, juce::Slider::TextBoxBelow, 76, 18);
+    setupRotarySlider(dirtSlider, &dirtLabel, "DIRT", kPastelTurquoise, kRoleCenter, juce::Slider::TextBoxBelow, 76, 18);
 
-    // 4. LOWPASS (Riesiger Hero-Cutoff + SATURATION-Gruppe [AMT + MODE] + LP RES)
-    setupRotarySlider(lpFreqSlider, nullptr, "", kNeonTurquoise, kRoleHero, juce::Slider::TextBoxBelow, 88, 19);
-    setupRotarySlider(lpSatSlider,  &lpSatAmtLabel, "AMT",    kNeonTurquoise, kRoleStandard, juce::Slider::TextBoxRight, 46, 17);
-    setupSatModeBox(lpSatModeBox, kNeonTurquoise);
-    setupRotarySlider(lpResSlider,  &lpResLabel,    "LP RES", kNeonTurquoise, kRoleStandard, juce::Slider::TextBoxBelow, 72, 17);
+    // 4. LOWPASS (Hero-Cutoff + SATURATION-Gruppe [AMT links neben dem Knob + MODE] + LP RES)
+    setupRotarySlider(lpFreqSlider, nullptr, "", kPastelTurquoise, kRoleHero, juce::Slider::TextBoxBelow, 88, 19);
+    setupRotarySlider(lpSatSlider,  &lpSatAmtLabel, "AMT",    kPastelTurquoise, kRoleStandard, juce::Slider::TextBoxRight, 42, 17);
+    lpSatAmtLabel.setJustificationType(juce::Justification::centredRight);
+    setupSatModeBox(lpSatModeBox, kPastelTurquoise);
+    setupRotarySlider(lpResSlider,  &lpResLabel,    "LP RES", kPastelTurquoise, kRoleStandard, juce::Slider::TextBoxBelow, 72, 17);
 
     lpSatModeLabel.setText("MODE", juce::dontSendNotification);
     lpSatModeLabel.setJustificationType(juce::Justification::centredLeft);
@@ -384,6 +437,7 @@ MoggDualLadderAudioProcessorEditor::MoggDualLadderAudioProcessorEditor(MoggDualL
     addAndMakeVisible(lpSatModeLabel);
 
     // 5. Top-Bar Schalter
+    linkButton.onStateChange = [this]() { repaint(); };
     addAndMakeVisible(linkButton);
 
     for (size_t i = 0; i < slopeButtons.size(); ++i) {
@@ -425,7 +479,7 @@ MoggDualLadderAudioProcessorEditor::MoggDualLadderAudioProcessorEditor(MoggDualL
     outGainAttachment   = std::make_unique<SliderAttachment>(audioProcessor.apvts, "outGain",   outGainSlider);
     linkAttachment      = std::make_unique<ButtonAttachment>(audioProcessor.apvts, "link",      linkButton);
 
-    setSize(1080, 446);
+    setSize(1080, 456);
     startTimerHz(30);
 }
 
@@ -498,7 +552,7 @@ void MoggDualLadderAudioProcessorEditor::paint(juce::Graphics& g) {
     const float w = static_cast<float>(getWidth());
     const float h = static_cast<float>(getHeight());
 
-    // 1. Matt-schwarze Moog-Frontplatte (ohne dekorative Linien)
+    // 1. Matt-schwarze Moog-Frontplatte
     juce::ColourGradient chassisGrad(juce::Colour(0xff14161c), 0.0f, 0.0f,
                                      kChassisBlack,            0.0f, h, false);
     g.setGradientFill(chassisGrad);
@@ -539,6 +593,37 @@ void MoggDualLadderAudioProcessorEditor::paint(juce::Graphics& g) {
     g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
     g.drawText("Slope -", getWidth() - 332, 18, 52, 26, juce::Justification::right);
 
+    // 4b. Dezente Verbindungsstriche vom zentrierten LINK-Button zu HIGHPASS & LOWPASS
+    {
+        const bool isLinked = linkButton.getToggleState();
+        const auto linkBox  = linkButton.getBounds().toFloat();
+        const float lineY   = linkBox.getCentreY();
+        const float hpDropX = static_cast<float>(hpModuleRect.getRight() - 28);
+        const float lpDropX = static_cast<float>(lpModuleRect.getX() + 28);
+        const float modTopY = static_cast<float>(hpModuleRect.getY());
+
+        juce::Path leftLinkPath;
+        leftLinkPath.startNewSubPath(linkBox.getX(), lineY);
+        leftLinkPath.lineTo(hpDropX, lineY);
+        leftLinkPath.lineTo(hpDropX, modTopY);
+
+        juce::Path rightLinkPath;
+        rightLinkPath.startNewSubPath(linkBox.getRight(), lineY);
+        rightLinkPath.lineTo(lpDropX, lineY);
+        rightLinkPath.lineTo(lpDropX, modTopY);
+
+        const auto leftCol  = isLinked ? kPastelPink.withAlpha(0.80f)      : kSilverMid.withAlpha(0.35f);
+        const auto rightCol = isLinked ? kPastelTurquoise.withAlpha(0.80f) : kSilverMid.withAlpha(0.35f);
+
+        g.setColour(leftCol);
+        g.strokePath(leftLinkPath, juce::PathStrokeType(1.2f, juce::PathStrokeType::mitered, juce::PathStrokeType::rounded));
+        g.fillEllipse(hpDropX - 2.2f, modTopY - 2.2f, 4.4f, 4.4f);
+
+        g.setColour(rightCol);
+        g.strokePath(rightLinkPath, juce::PathStrokeType(1.2f, juce::PathStrokeType::mitered, juce::PathStrokeType::rounded));
+        g.fillEllipse(lpDropX - 2.2f, modTopY - 2.2f, 4.4f, 4.4f);
+    }
+
     // 5. Die 5 Modul-Container
     auto drawModuleContainer = [&](juce::Rectangle<int> rect, const juce::String& title,
                                    juce::Colour bannerBg, juce::Colour bannerText,
@@ -559,49 +644,49 @@ void MoggDualLadderAudioProcessorEditor::paint(juce::Graphics& g) {
         g.drawText(title, banner.toNearestInt(), juce::Justification::centred, false);
     };
 
-    drawModuleContainer(inputModuleRect,  "INPUT",    kCrispWhite,    kChassisBlack, kCrispWhite.withAlpha(0.75f));
-    drawModuleContainer(hpModuleRect,     "HIGHPASS", kNeonPink,      kChassisBlack, kNeonPink);
-    drawModuleContainer(modModuleRect,    "MOD",      kCrispWhite,    kChassisBlack, kCrispWhite.withAlpha(0.75f));
-    drawModuleContainer(lpModuleRect,     "LOWPASS",  kNeonTurquoise, kChassisBlack, kNeonTurquoise);
-    drawModuleContainer(outputModuleRect, "OUTPUT",   kCrispWhite,    kChassisBlack, kCrispWhite.withAlpha(0.75f));
+    drawModuleContainer(inputModuleRect,  "INPUT",    kCrispWhite,      kChassisBlack, kCrispWhite.withAlpha(0.75f));
+    drawModuleContainer(hpModuleRect,     "HIGHPASS", kPastelPink,      kChassisBlack, kPastelPink);
+    drawModuleContainer(modModuleRect,    "MOD",      kCrispWhite,      kChassisBlack, kCrispWhite.withAlpha(0.75f));
+    drawModuleContainer(lpModuleRect,     "LOWPASS",  kPastelTurquoise, kChassisBlack, kPastelTurquoise);
+    drawModuleContainer(outputModuleRect, "OUTPUT",   kCrispWhite,      kChassisBlack, kCrispWhite.withAlpha(0.75f));
 
     // 6. Plakative "CUTOFF" Überschriften über den beiden großen Hero-Reglern
-    auto drawCutoffHeading = [&](juce::Rectangle<int> moduleRect, juce::Colour neonCol) {
+    auto drawCutoffHeading = [&](juce::Rectangle<int> moduleRect, juce::Colour pastelCol) {
         auto titleBox = juce::Rectangle<float>(static_cast<float>(moduleRect.getX()),
                                                static_cast<float>(moduleRect.getY() + 25),
                                                static_cast<float>(moduleRect.getWidth()),
                                                32.0f);
-        g.setColour(neonCol.withAlpha(0.28f));
+        g.setColour(pastelCol.withAlpha(0.24f));
         g.setFont(juce::FontOptions(26.0f, juce::Font::bold));
         g.drawText("CUTOFF", titleBox.translated(0.0f, 1.0f).toNearestInt(), juce::Justification::centred, false);
 
-        g.setColour(neonCol);
+        g.setColour(pastelCol);
         g.drawText("CUTOFF", titleBox.toNearestInt(), juce::Justification::centred, false);
     };
-    drawCutoffHeading(hpModuleRect, kNeonPink);
-    drawCutoffHeading(lpModuleRect, kNeonTurquoise);
+    drawCutoffHeading(hpModuleRect, kPastelPink);
+    drawCutoffHeading(lpModuleRect, kPastelTurquoise);
 
-    // 7. Eindeutig abgegrenzte SATURATION-Subboxen (AMT + MODE gehören sichtbar zusammen)
-    auto drawSatGroupBox = [&](juce::Rectangle<int> boxRect, juce::Colour neonCol) {
+    // 7. SATURATION-Subboxen (AMT links neben vergrößertem Knob + MODE darunter)
+    auto drawSatGroupBox = [&](juce::Rectangle<int> boxRect, juce::Colour pastelCol) {
         auto r = boxRect.toFloat();
         g.setColour(kRecessBlack.withAlpha(0.85f));
         g.fillRoundedRectangle(r, 5.0f);
 
-        g.setColour(neonCol.withAlpha(0.8f));
+        g.setColour(pastelCol.withAlpha(0.8f));
         g.drawRoundedRectangle(r, 5.0f, 1.2f);
 
         auto header = r.removeFromTop(17.0f);
-        g.setColour(neonCol);
+        g.setColour(pastelCol);
         g.fillRoundedRectangle(header.reduced(0.5f, 0.5f), 4.0f);
 
         g.setColour(kChassisBlack);
         g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
         g.drawText("SATURATION", header.toNearestInt(), juce::Justification::centred, false);
     };
-    drawSatGroupBox(hpSatBoxRect, kNeonPink);
-    drawSatGroupBox(lpSatBoxRect, kNeonTurquoise);
+    drawSatGroupBox(hpSatBoxRect, kPastelPink);
+    drawSatGroupBox(lpSatBoxRect, kPastelTurquoise);
 
-    // 8. Live Stereo-LED-Meter in INPUT & OUTPUT
+    // 8. Live Stereo-LED-Meter inkl. dBFS-Skala in INPUT & OUTPUT
     drawStereoLedMeter(g, inputMeterRect,  dispInL,  dispInR);
     drawStereoLedMeter(g, outputMeterRect, dispOutL, dispOutR);
 }
@@ -610,7 +695,7 @@ void MoggDualLadderAudioProcessorEditor::resized() {
     const int cheekW = 20;
     auto frame = getLocalBounds().reduced(cheekW + 8, 8);
 
-    // Kopfzeile: LINK FREQ mittig, Slope-Taster rechts
+    // Kopfzeile: Slope-Taster rechts, LINK FREQ exakt zentriert über MOD
     auto topBar = frame.reduced(34, 0).removeFromTop(44);
     topBar.removeFromTop(6);
 
@@ -621,15 +706,13 @@ void MoggDualLadderAudioProcessorEditor::resized() {
         slopeButtons[i].setBounds(slopeArea.removeFromLeft(slopeBtnW).reduced(2, 0));
     }
 
-    linkButton.setBounds(juce::Rectangle<int>(getWidth() / 2 - 74, topBar.getY() + 4, 118, 28));
-
     // Haupt-Deck mit 5 Modulen
     auto deck = frame.reduced(12, 0);
     deck.setTop(62);
     deck.setBottom(frame.getBottom() - 12);
 
     constexpr int gap = 10;
-    const int sideW   = 108;
+    const int sideW   = 114;
     const int modW    = 134;
     const int filterW = (deck.getWidth() - sideW * 2 - modW - gap * 4) / 2;
 
@@ -643,7 +726,12 @@ void MoggDualLadderAudioProcessorEditor::resized() {
     deck.removeFromLeft(gap);
     outputModuleRect = deck;
 
-    // 1. INPUT-Modul: oben 1 Poti (IN LEVEL), unten Stereo-LED-Meter
+    // LINK FREQ exakt mittig über dem MOD-Modul platzieren
+    const int linkW = 114;
+    const int linkH = 26;
+    linkButton.setBounds(modModuleRect.getCentreX() - linkW / 2, topBar.getY() + 5, linkW, linkH);
+
+    // 1. INPUT-Modul: oben 1 Poti (IN LEVEL), unten Stereo-LED-Meter mit dBFS-Skala
     {
         auto inner = inputModuleRect.reduced(10, 0);
         inner.removeFromTop(28);
@@ -651,11 +739,11 @@ void MoggDualLadderAudioProcessorEditor::resized() {
 
         inGainLabel.setBounds(inner.removeFromTop(16));
         inGainSlider.setBounds(inner.removeFromTop(96));
-        inner.removeFromTop(10);
-        inputMeterRect = inner.withSizeKeepingCentre(54, inner.getHeight());
+        inner.removeFromTop(8);
+        inputMeterRect = inner.withSizeKeepingCentre(74, inner.getHeight());
     }
 
-    // 2. OUTPUT-Modul: oben Stereo-LED-Meter, unten 1 Poti (OUT LEVEL)
+    // 2. OUTPUT-Modul: oben Stereo-LED-Meter mit dBFS-Skala, unten 1 Poti (OUT LEVEL)
     {
         auto inner = outputModuleRect.reduced(10, 0);
         inner.removeFromTop(28);
@@ -663,8 +751,8 @@ void MoggDualLadderAudioProcessorEditor::resized() {
 
         outGainSlider.setBounds(inner.removeFromBottom(96));
         outGainLabel.setBounds(inner.removeFromBottom(16));
-        inner.removeFromBottom(10);
-        outputMeterRect = inner.withSizeKeepingCentre(54, inner.getHeight());
+        inner.removeFromBottom(8);
+        outputMeterRect = inner.withSizeKeepingCentre(74, inner.getHeight());
     }
 
     // 3. MOD-Modul: zentraler DIRT-Regler
@@ -676,34 +764,34 @@ void MoggDualLadderAudioProcessorEditor::resized() {
         dirtSlider.setBounds(centerBlock);
     }
 
-    // Hilfsfunktion für die SATURATION-Subbox (AMT-Poti + MODE-Selector klar vereint)
+    // Hilfsfunktion für die SATURATION-Subbox: AMT links neben dem größeren Knob, MODE darunter
     auto layoutSatSubBox = [](juce::Rectangle<int> box,
                               juce::Slider& satSlider, juce::Label& amtLabel,
                               juce::Label& modeLabel, juce::ComboBox& modeBox) {
-        auto inner = box.reduced(7, 0);
-        inner.removeFromTop(21);
+        auto inner = box.reduced(6, 0);
+        inner.removeFromTop(19);
         inner.removeFromBottom(6);
 
-        // Untere Zeile: MODE-Label + Dropdown (LADDER / WARM / FOLD / GRIT)
         auto bottomRow = inner.removeFromBottom(22);
-        modeLabel.setBounds(bottomRow.removeFromLeft(38));
+        modeLabel.setBounds(bottomRow.removeFromLeft(36));
         modeBox.setBounds(bottomRow);
 
         inner.removeFromBottom(4);
 
-        // Obere Zeile: AMT-Label über dem Regler
-        amtLabel.setBounds(inner.removeFromTop(14));
+        // Mittlere Zeile: AMT links neben dem Regler -> mehr vertikaler Platz für ca. +25% größeren Knob
+        amtLabel.setBounds(inner.removeFromLeft(30));
+        inner.removeFromLeft(2);
         satSlider.setBounds(inner);
     };
 
     // 4. HIGHPASS-Modul: riesiger CUTOFF oben, unten HP RES (links) + SATURATION-Box (rechts)
     {
         auto inner = hpModuleRect.reduced(10, 0);
-        inner.removeFromTop(58); // Platz für Banner + "CUTOFF"-Titel
+        inner.removeFromTop(58);
         inner.removeFromBottom(8);
 
-        auto bottomRow = inner.removeFromBottom(114);
-        auto resCol = bottomRow.removeFromLeft(116);
+        auto bottomRow = inner.removeFromBottom(120);
+        auto resCol = bottomRow.removeFromLeft(102);
         bottomRow.removeFromLeft(8);
         hpSatBoxRect = bottomRow;
 
@@ -722,8 +810,8 @@ void MoggDualLadderAudioProcessorEditor::resized() {
         inner.removeFromTop(58);
         inner.removeFromBottom(8);
 
-        auto bottomRow = inner.removeFromBottom(114);
-        auto resCol = bottomRow.removeFromRight(116);
+        auto bottomRow = inner.removeFromBottom(120);
+        auto resCol = bottomRow.removeFromRight(102);
         bottomRow.removeFromRight(8);
         lpSatBoxRect = bottomRow;
 
