@@ -34,11 +34,11 @@ public:
                       juce::ComboBox& box) override;
 };
 
-class MoggDualLadderAudioProcessorEditor : public juce::AudioProcessorEditor,
-                                           private juce::Timer {
+class MoggEditorContent : public juce::Component,
+                          private juce::Timer {
 public:
-    explicit MoggDualLadderAudioProcessorEditor(MoggDualLadderAudioProcessor&);
-    ~MoggDualLadderAudioProcessorEditor() override;
+    explicit MoggEditorContent(MoggDualLadderAudioProcessor&);
+    ~MoggEditorContent() override;
 
     void paint(juce::Graphics&) override;
     void resized() override;
@@ -47,7 +47,6 @@ private:
     void timerCallback() override;
 
     MoggDualLadderAudioProcessor& audioProcessor;
-    MoggLookAndFeel moggLookAndFeel;
 
     juce::Slider inGainSlider, outGainSlider;
     juce::Slider hpFreqSlider, hpResSlider, hpSatSlider;
@@ -93,6 +92,23 @@ private:
                            juce::Slider::TextEntryBoxPosition textBoxPos = juce::Slider::TextBoxBelow,
                            int textW = 76, int textH = 18);
     void setupSatModeBox(juce::ComboBox& box);
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MoggEditorContent)
+};
+
+class MoggDualLadderAudioProcessorEditor : public juce::AudioProcessorEditor {
+public:
+    explicit MoggDualLadderAudioProcessorEditor(MoggDualLadderAudioProcessor&);
+    ~MoggDualLadderAudioProcessorEditor() override;
+
+    void resized() override;
+
+private:
+    static constexpr int kBaseWidth  = 1080;
+    static constexpr int kBaseHeight = 468;
+
+    MoggLookAndFeel moggLookAndFeel;
+    MoggEditorContent content;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MoggDualLadderAudioProcessorEditor)
 };
