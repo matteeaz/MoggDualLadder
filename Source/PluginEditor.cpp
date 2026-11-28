@@ -52,7 +52,7 @@ namespace {
         auto chRow = verticalInner.removeFromBottom(11.0f);
         verticalInner.reduce(0.0f, 2.0f);
 
-        // LED-Spalten (L/R) weiter rechts -> exakt mittig unter "dBFS" zentriert
+        // LED-Spalten (L/R) exakt mittig unter "dBFS" zentriert
         constexpr float colGap = 3.0f;
         constexpr float segW   = 9.5f;
         constexpr float barsW  = segW * 2.0f + colGap; // 22.0 px
@@ -155,7 +155,6 @@ namespace {
         constexpr float headR   = 7.2f;
         constexpr float hexR    = 3.7f;
 
-        // 1. Senkbohrung im Gehäuse (Lichtkante unten rechts, Schatten oben links)
         juce::ColourGradient wellGrad(juce::Colour(0xff040507), cx - recessR, cy - recessR,
                                       juce::Colour(0xff252932), cx + recessR, cy + recessR, false);
         g.setGradientFill(wellGrad);
@@ -164,22 +163,18 @@ namespace {
         g.setColour(kSilverLight.withAlpha(0.18f));
         g.drawEllipse(cx - recessR, cy - recessR, recessR * 2.0f, recessR * 2.0f, 0.9f);
 
-        // 2. Tiefer Schlagschatten des Schraubenkopfes
         g.setColour(juce::Colours::black.withAlpha(0.85f));
         g.fillEllipse(cx - headR + 1.0f, cy - headR + 1.5f, headR * 2.0f, headR * 2.0f);
 
-        // 3. Gebürsteter dunkler Stahl-Schraubenkopf (3D-Metallverlauf)
         juce::ColourGradient headGrad(juce::Colour(0xff525968), cx - headR * 0.85f, cy - headR * 0.85f,
                                       juce::Colour(0xff12141a), cx + headR * 0.90f, cy + headR * 0.90f, false);
         headGrad.addColour(0.45, juce::Colour(0xff2a2f3a));
         g.setGradientFill(headGrad);
         g.fillEllipse(cx - headR, cy - headR, headR * 2.0f, headR * 2.0f);
 
-        // Feine gedrehte Metall-Rille auf der Kopffläche
         g.setColour(juce::Colours::black.withAlpha(0.32f));
         g.drawEllipse(cx - 5.4f, cy - 5.4f, 10.8f, 10.8f, 0.8f);
 
-        // Metallischer Glanzlicht-Bogen an der oberen linken Fase
         juce::Path rimHighlight;
         rimHighlight.addCentredArc(cx, cy, headR - 0.5f, headR - 0.5f, 0.0f, -2.35f, 0.55f, true);
         g.setColour(kSilverLight.withAlpha(0.65f));
@@ -188,7 +183,6 @@ namespace {
         g.setColour(juce::Colours::black.withAlpha(0.75f));
         g.drawEllipse(cx - headR, cy - headR, headR * 2.0f, headR * 2.0f, 0.9f);
 
-        // 4. Inbus-Sechskant (Hex-Socket) mit Innenwand-Schattierung
         auto makeHexPath = [&](float radius, float rotOffset) {
             juce::Path p;
             for (int i = 0; i < 6; ++i) {
@@ -206,17 +200,14 @@ namespace {
         const auto outerChamfer = makeHexPath(hexR + 0.65f, hexAngle);
         const auto innerSocket  = makeHexPath(hexR, hexAngle);
 
-        // Gefaste Kante um das Inbus-Loch
         g.setColour(juce::Colours::black.withAlpha(0.55f));
         g.strokePath(outerChamfer, juce::PathStrokeType(1.0f));
 
-        // Tiefe Inbus-Vertiefung
         juce::ColourGradient socketGrad(juce::Colour(0xff040507), cx - hexR, cy - hexR,
                                         juce::Colour(0xff1f242e), cx + hexR, cy + hexR, false);
         g.setGradientFill(socketGrad);
         g.fillPath(innerSocket);
 
-        // Scharfe metallische Innenkante des Sechskants
         g.setColour(kSilverMid.withAlpha(0.42f));
         g.strokePath(innerSocket, juce::PathStrokeType(0.85f));
     }
@@ -501,7 +492,7 @@ void MoggLookAndFeel::drawToggleButton(juce::Graphics& g, juce::ToggleButton& bu
     g.setColour(isOn ? kPastelPink : kSilverMid);
     g.fillRoundedRectangle(thumb.reduced(1.0f), 2.0f);
 
-    g.setFont(juce::FontOptions(10.8f, juce::Font::bold));
+    g.setFont(juce::FontOptions(10.3f, juce::Font::bold));
     g.setColour(isOn ? kCrispWhite : kSilverLight);
     g.drawText(button.getButtonText(), bounds.reduced(2.0f, 0.0f), juce::Justification::centredLeft, false);
 }
@@ -548,8 +539,17 @@ MoggEditorContent::MoggEditorContent(MoggDualLadderAudioProcessor& p)
     hpSatModeLabel.setColour(juce::Label::textColourId, kSilverMid);
     addAndMakeVisible(hpSatModeLabel);
 
-    // 3. MOD (Zentraler DIRT-Regler)
+    // 3. MOD (Zentraler DIRT-Regler + weicher Höhen-Shelf-Boost)
     setupRotarySlider(dirtSlider, &dirtLabel, "DIRT", kPastelTurquoise, kRoleCenter, juce::Slider::TextBoxBelow, 76, 18);
+
+    airBoostLabel.setText("HF SHELF", juce::dontSendNotification);
+    airBoostLabel.setJustificationType(juce::Justification::centred);
+    airBoostLabel.setFont(juce::FontOptions(10.0f, juce::Font::bold));
+    airBoostLabel.setColour(juce::Label::textColourId, kSilverLight);
+    addAndMakeVisible(airBoostLabel);
+
+    airBoostButton.setToggleState(false, juce::dontSendNotification);
+    addAndMakeVisible(airBoostButton);
 
     // 4. LOWPASS (Hero-Cutoff + SATURATION-Gruppe [AMT links neben dem Knob + MODE] + LP RES)
     setupRotarySlider(lpFreqSlider, nullptr, "", kPastelTurquoise, kRoleHero, juce::Slider::TextBoxBelow, 90, 19);
@@ -601,6 +601,7 @@ MoggEditorContent::MoggEditorContent(MoggDualLadderAudioProcessor& p)
     hpSatAttachment     = std::make_unique<SliderAttachment>(audioProcessor.apvts, "hpSat",     hpSatSlider);
     hpSatModeAttachment = std::make_unique<ComboBoxAttachment>(audioProcessor.apvts, "hpSatMode", hpSatModeBox);
     dirtAttachment      = std::make_unique<SliderAttachment>(audioProcessor.apvts, "dirt",      dirtSlider);
+    airBoostAttachment  = std::make_unique<ButtonAttachment>(audioProcessor.apvts, "airBoost",  airBoostButton);
     lpFreqAttachment    = std::make_unique<SliderAttachment>(audioProcessor.apvts, "lpFreq",    lpFreqSlider);
     lpResAttachment     = std::make_unique<SliderAttachment>(audioProcessor.apvts, "lpRes",     lpResSlider);
     lpSatAttachment     = std::make_unique<SliderAttachment>(audioProcessor.apvts, "lpSat",     lpSatSlider);
@@ -882,10 +883,17 @@ void MoggEditorContent::resized() {
         outputMeterRect = inner.withSizeKeepingCentre(74, inner.getHeight());
     }
 
-    // 3. MOD-Modul: zentraler DIRT-Regler
+    // 3. MOD-Modul: zentraler DIRT-Regler + weicher Höhen-Shelf-Boost Button darunter
     {
         auto inner = modModuleRect.reduced(8, 0);
-        inner.removeFromTop(28);
+        inner.removeFromTop(26);
+        inner.removeFromBottom(12);
+
+        auto boostRow = inner.removeFromBottom(46);
+        airBoostLabel.setBounds(boostRow.removeFromTop(15));
+        boostRow.removeFromTop(3);
+        airBoostButton.setBounds(boostRow.withSizeKeepingCentre(104, 26));
+
         auto centerBlock = inner.withSizeKeepingCentre(inner.getWidth(), 144);
         dirtLabel.setBounds(centerBlock.removeFromTop(18));
         dirtSlider.setBounds(centerBlock);
