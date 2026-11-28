@@ -202,7 +202,7 @@ namespace {
             return p;
         };
 
-        constexpr float hexAngle = 0.22f; // leichte natürliche Drehung
+        constexpr float hexAngle = 0.22f;
         const auto outerChamfer = makeHexPath(hexR + 0.65f, hexAngle);
         const auto innerSocket  = makeHexPath(hexR, hexAngle);
 
@@ -210,7 +210,7 @@ namespace {
         g.setColour(juce::Colours::black.withAlpha(0.55f));
         g.strokePath(outerChamfer, juce::PathStrokeType(1.0f));
 
-        // Tiefe Inbus-Vertiefung (unten rechts leicht aufgehellt durch Innenwand-Reflexion)
+        // Tiefe Inbus-Vertiefung
         juce::ColourGradient socketGrad(juce::Colour(0xff040507), cx - hexR, cy - hexR,
                                         juce::Colour(0xff1f242e), cx + hexR, cy + hexR, false);
         g.setGradientFill(socketGrad);
@@ -239,7 +239,6 @@ juce::Slider::SliderLayout MoggLookAndFeel::getSliderLayout(juce::Slider& slider
     const int knobRole = static_cast<int>(slider.getProperties().getWithDefault("knobRole", kRoleStandard));
 
     if (knobRole == kRoleHero) {
-        // Frequenzzahl direkt unter den großen Cutoff-Knob setzen
         const auto local = slider.getLocalBounds();
         const int boxW = 90;
         const int boxH = 19;
@@ -529,11 +528,9 @@ void MoggLookAndFeel::drawComboBox(juce::Graphics& g, int width, int height, boo
 
 // ==============================================================================
 
-MoggDualLadderAudioProcessorEditor::MoggDualLadderAudioProcessorEditor(MoggDualLadderAudioProcessor& p)
-    : AudioProcessorEditor(&p), audioProcessor(p)
+MoggEditorContent::MoggEditorContent(MoggDualLadderAudioProcessor& p)
+    : audioProcessor(p)
 {
-    setLookAndFeel(&moggLookAndFeel);
-
     // 1. INPUT & OUTPUT (TextBox-Breite = 74 px, identisch zur Meter-Umrandung)
     setupRotarySlider(inGainSlider,  &inGainLabel,  "IN LEVEL",  kPastelPink,      kRoleStandard, juce::Slider::TextBoxBelow, 74, 17);
     setupRotarySlider(outGainSlider, &outGainLabel, "OUT LEVEL", kPastelTurquoise, kRoleStandard, juce::Slider::TextBoxBelow, 74, 17);
@@ -611,16 +608,14 @@ MoggDualLadderAudioProcessorEditor::MoggDualLadderAudioProcessorEditor(MoggDualL
     outGainAttachment   = std::make_unique<SliderAttachment>(audioProcessor.apvts, "outGain",   outGainSlider);
     linkAttachment      = std::make_unique<ButtonAttachment>(audioProcessor.apvts, "link",      linkButton);
 
-    setSize(1080, 468);
     startTimerHz(30);
 }
 
-MoggDualLadderAudioProcessorEditor::~MoggDualLadderAudioProcessorEditor() {
+MoggEditorContent::~MoggEditorContent() {
     stopTimer();
-    setLookAndFeel(nullptr);
 }
 
-void MoggDualLadderAudioProcessorEditor::timerCallback() {
+void MoggEditorContent::timerCallback() {
     const float rawInL  = linearToMeterNorm(audioProcessor.consumeInputPeakL());
     const float rawInR  = linearToMeterNorm(audioProcessor.consumeInputPeakR());
     const float rawOutL = linearToMeterNorm(audioProcessor.consumeOutputPeakL());
@@ -643,11 +638,11 @@ void MoggDualLadderAudioProcessorEditor::timerCallback() {
     }
 }
 
-void MoggDualLadderAudioProcessorEditor::setupRotarySlider(juce::Slider& slider, juce::Label* label,
-                                                           const juce::String& text, juce::Colour accent,
-                                                           int knobRole,
-                                                           juce::Slider::TextEntryBoxPosition textBoxPos,
-                                                           int textW, int textH) {
+void MoggEditorContent::setupRotarySlider(juce::Slider& slider, juce::Label* label,
+                                          const juce::String& text, juce::Colour accent,
+                                          int knobRole,
+                                          juce::Slider::TextEntryBoxPosition textBoxPos,
+                                          int textW, int textH) {
     slider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
     slider.setTextBoxStyle(textBoxPos, false, textW, textH);
     slider.setColour(juce::Slider::rotarySliderFillColourId, accent);
@@ -667,7 +662,7 @@ void MoggDualLadderAudioProcessorEditor::setupRotarySlider(juce::Slider& slider,
     }
 }
 
-void MoggDualLadderAudioProcessorEditor::setupSatModeBox(juce::ComboBox& box) {
+void MoggEditorContent::setupSatModeBox(juce::ComboBox& box) {
     box.addItem("LADDER", 1);
     box.addItem("WARM",   2);
     box.addItem("FOLD",   3);
@@ -680,7 +675,7 @@ void MoggDualLadderAudioProcessorEditor::setupSatModeBox(juce::ComboBox& box) {
     addAndMakeVisible(box);
 }
 
-void MoggDualLadderAudioProcessorEditor::paint(juce::Graphics& g) {
+void MoggEditorContent::paint(juce::Graphics& g) {
     const float w = static_cast<float>(getWidth());
     const float h = static_cast<float>(getHeight());
 
@@ -823,7 +818,7 @@ void MoggDualLadderAudioProcessorEditor::paint(juce::Graphics& g) {
     drawStereoLedMeter(g, outputMeterRect, dispOutL, dispOutR);
 }
 
-void MoggDualLadderAudioProcessorEditor::resized() {
+void MoggEditorContent::resized() {
     const int cheekW = 20;
     auto frame = getLocalBounds().reduced(cheekW + 8, 8);
 
@@ -954,4 +949,33 @@ void MoggDualLadderAudioProcessorEditor::resized() {
         inner.removeFromBottom(4);
         lpFreqSlider.setBounds(inner.withSizeKeepingCentre(std::min(inner.getWidth(), 204), inner.getHeight()));
     }
+}
+
+// ==============================================================================
+
+MoggDualLadderAudioProcessorEditor::MoggDualLadderAudioProcessorEditor(MoggDualLadderAudioProcessor& p)
+    : AudioProcessorEditor(&p), content(p)
+{
+    setLookAndFeel(&moggLookAndFeel);
+    addAndMakeVisible(content);
+    content.setBounds(0, 0, kBaseWidth, kBaseHeight);
+
+    setResizable(true, true);
+    setResizeLimits(720, 312, 2160, 936);
+
+    if (auto* constrainer = getConstrainer()) {
+        constrainer->setFixedAspectRatio(static_cast<double>(kBaseWidth) / static_cast<double>(kBaseHeight));
+    }
+
+    setSize(kBaseWidth, kBaseHeight);
+}
+
+MoggDualLadderAudioProcessorEditor::~MoggDualLadderAudioProcessorEditor() {
+    setLookAndFeel(nullptr);
+}
+
+void MoggDualLadderAudioProcessorEditor::resized() {
+    const float scaleX = static_cast<float>(getWidth())  / static_cast<float>(kBaseWidth);
+    const float scaleY = static_cast<float>(getHeight()) / static_cast<float>(kBaseHeight);
+    content.setTransform(juce::AffineTransform::scale(scaleX, scaleY));
 }
