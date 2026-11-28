@@ -4,9 +4,9 @@
 #include <array>
 #include "PluginProcessor.h"
 
-class MoggLookAndFeel : public juce::LookAndFeel_V4 {
+class DirtyMoggerLookAndFeel : public juce::LookAndFeel_V4 {
 public:
-    MoggLookAndFeel();
+    DirtyMoggerLookAndFeel();
 
     juce::Slider::SliderLayout getSliderLayout(juce::Slider& slider) override;
 
@@ -34,11 +34,11 @@ public:
                       juce::ComboBox& box) override;
 };
 
-class MoggEditorContent : public juce::Component,
-                          private juce::Timer {
+class DirtyMoggerEditorContent : public juce::Component,
+                                 private juce::Timer {
 public:
-    explicit MoggEditorContent(MoggDualLadderAudioProcessor&);
-    ~MoggEditorContent() override;
+    explicit DirtyMoggerEditorContent(DirtyMoggerAudioProcessor&);
+    ~DirtyMoggerEditorContent() override;
 
     void paint(juce::Graphics&) override;
     void resized() override;
@@ -46,7 +46,7 @@ public:
 private:
     void timerCallback() override;
 
-    MoggDualLadderAudioProcessor& audioProcessor;
+    DirtyMoggerAudioProcessor& audioProcessor;
 
     juce::Slider inGainSlider, outGainSlider;
     juce::Slider hpFreqSlider, hpResSlider, hpSatSlider;
@@ -94,13 +94,13 @@ private:
                            int textW = 76, int textH = 18);
     void setupSatModeBox(juce::ComboBox& box);
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MoggEditorContent)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(DirtyMoggerEditorContent)
 };
 
-class MoggDualLadderAudioProcessorEditor : public juce::AudioProcessorEditor {
+class DirtyMoggerAudioProcessorEditor : public juce::AudioProcessorEditor {
 public:
-    explicit MoggDualLadderAudioProcessorEditor(MoggDualLadderAudioProcessor&);
-    ~MoggDualLadderAudioProcessorEditor() override;
+    explicit DirtyMoggerAudioProcessorEditor(DirtyMoggerAudioProcessor&);
+    ~DirtyMoggerAudioProcessorEditor() override;
 
     void resized() override;
 
@@ -108,8 +108,8 @@ private:
     static constexpr int kBaseWidth  = 1080;
     static constexpr int kBaseHeight = 468;
 
-    MoggLookAndFeel moggLookAndFeel;
-    MoggEditorContent content;
+    DirtyMoggerLookAndFeel dirtyMoggerLookAndFeel;
+    DirtyMoggerEditorContent content;
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MoggDualLadderAudioProcessorEditor)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(DirtyMoggerAudioProcessorEditor)
 };
