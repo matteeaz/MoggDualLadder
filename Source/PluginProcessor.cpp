@@ -1,7 +1,7 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
-MoggDualLadderAudioProcessor::MoggDualLadderAudioProcessor()
+DirtyMoggerAudioProcessor::DirtyMoggerAudioProcessor()
     : AudioProcessor(BusesProperties()
                      .withInput("Input", juce::AudioChannelSet::stereo(), true)
                      .withOutput("Output", juce::AudioChannelSet::stereo(), true)),
@@ -30,13 +30,13 @@ MoggDualLadderAudioProcessor::MoggDualLadderAudioProcessor()
     filterR.setComponentTolerance(1.003, 0.996);
 }
 
-MoggDualLadderAudioProcessor::~MoggDualLadderAudioProcessor() {
+DirtyMoggerAudioProcessor::~DirtyMoggerAudioProcessor() {
     apvts.removeParameterListener("lpFreq", this);
     apvts.removeParameterListener("hpFreq", this);
     apvts.removeParameterListener("link", this);
 }
 
-juce::AudioProcessorValueTreeState::ParameterLayout MoggDualLadderAudioProcessor::createParameterLayout() {
+juce::AudioProcessorValueTreeState::ParameterLayout DirtyMoggerAudioProcessor::createParameterLayout() {
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
 
     auto hpFreqRange = juce::NormalisableRange<float>(10.0f, 20000.0f, 0.1f, 0.25f);
@@ -101,7 +101,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout MoggDualLadderAudioProcessor
     return { params.begin(), params.end() };
 }
 
-void MoggDualLadderAudioProcessor::parameterChanged(const juce::String& parameterID, float newValue) {
+void DirtyMoggerAudioProcessor::parameterChanged(const juce::String& parameterID, float newValue) {
     if (isRestoringState.load()) {
         return;
     }
@@ -179,7 +179,7 @@ void MoggDualLadderAudioProcessor::parameterChanged(const juce::String& paramete
     }
 }
 
-void MoggDualLadderAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock) {
+void DirtyMoggerAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock) {
     currentSampleRate = sampleRate;
 
     oversampling.reset();
@@ -205,19 +205,19 @@ void MoggDualLadderAudioProcessor::prepareToPlay(double sampleRate, int samplesP
     setLatencySamples(static_cast<int>(oversampling.getLatencyInSamples()));
 }
 
-void MoggDualLadderAudioProcessor::releaseResources() {
+void DirtyMoggerAudioProcessor::releaseResources() {
     oversampling.reset();
     airShelfL.reset();
     airShelfR.reset();
 }
 
-bool MoggDualLadderAudioProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const {
+bool DirtyMoggerAudioProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const {
     const auto& mainIn  = layouts.getMainInputChannelSet();
     const auto& mainOut = layouts.getMainOutputChannelSet();
     return (mainIn == mainOut) && (mainIn == juce::AudioChannelSet::mono() || mainIn == juce::AudioChannelSet::stereo());
 }
 
-void MoggDualLadderAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&) {
+void DirtyMoggerAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&) {
     juce::ScopedNoDenormals noDenormals;
 
     const int totalNumInputChannels  = getTotalNumInputChannels();
@@ -236,13 +236,13 @@ void MoggDualLadderAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer
     const float hpRes       = hpResParam->load();
     const float hpSat       = hpSatParam->load();
     const int   hpModeIdx   = std::clamp(static_cast<int>(std::lround(hpSatModeParam->load())), 0, 3);
-    const auto  hpSatMode   = static_cast<MoggDualLadderFilter::SatMode>(hpModeIdx);
+    const auto  hpSatMode   = static_cast<DirtyMoggerFilter::SatMode>(hpModeIdx);
     const float lpSat       = lpSatParam->load();
     const int   lpModeIdx   = std::clamp(static_cast<int>(std::lround(lpSatModeParam->load())), 0, 3);
-    const auto  lpSatMode   = static_cast<MoggDualLadderFilter::SatMode>(lpModeIdx);
+    const auto  lpSatMode   = static_cast<DirtyMoggerFilter::SatMode>(lpModeIdx);
     const float dirt        = dirtParam->load();
     const int   slopeIndex  = std::clamp(static_cast<int>(std::lround(slopeParam->load())), 0, 3);
-    const auto  slope       = static_cast<MoggDualLadderFilter::Slope>(slopeIndex);
+    const auto  slope       = static_cast<DirtyMoggerFilter::Slope>(slopeIndex);
 
     // Input-Metering (inkl. IN LEVEL Gain-Stufe)
     const float inGainLinear = juce::Decibels::decibelsToGain(inGain);
@@ -328,17 +328,17 @@ void MoggDualLadderAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer
     }
 }
 
-juce::AudioProcessorEditor* MoggDualLadderAudioProcessor::createEditor() {
-    return new MoggDualLadderAudioProcessorEditor(*this);
+juce::AudioProcessorEditor* DirtyMoggerAudioProcessor::createEditor() {
+    return new DirtyMoggerAudioProcessorEditor(*this);
 }
 
-void MoggDualLadderAudioProcessor::getStateInformation(juce::MemoryBlock& destData) {
+void DirtyMoggerAudioProcessor::getStateInformation(juce::MemoryBlock& destData) {
     auto state = apvts.copyState();
     std::unique_ptr<juce::XmlElement> xml(state.createXml());
     copyXmlToBinary(*xml, destData);
 }
 
-void MoggDualLadderAudioProcessor::setStateInformation(const void* data, int sizeInBytes) {
+void DirtyMoggerAudioProcessor::setStateInformation(const void* data, int sizeInBytes) {
     std::unique_ptr<juce::XmlElement> xmlState(getXmlFromBinary(data, sizeInBytes));
     if (xmlState != nullptr && xmlState->hasTagName(apvts.state.getType())) {
         isRestoringState.store(true);
@@ -354,5 +354,5 @@ void MoggDualLadderAudioProcessor::setStateInformation(const void* data, int siz
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter() {
-    return new MoggDualLadderAudioProcessor();
+    return new DirtyMoggerAudioProcessor();
 }
