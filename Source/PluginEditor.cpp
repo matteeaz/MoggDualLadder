@@ -4,7 +4,7 @@
 
 namespace {
     // Regler-Hierarchie:
-    // 0 = Standard Moog-Poti (IN/OUT LEVEL, RES, SAT AMT)
+    // 0 = Standard-Poti (IN/OUT LEVEL, RES, SAT AMT)
     // 1 = Hero Cutoff-Regler (riesig mit leuchtendem Radial-Skalenkranz)
     // 2 = Zentraler DIRT-Regler (mittelgroß mit Pastell-Rosa->Türkis-Verlauf)
     constexpr int kRoleStandard = 0;
@@ -214,7 +214,7 @@ namespace {
     }
 }
 
-MoggLookAndFeel::MoggLookAndFeel() {
+DirtyMoggerLookAndFeel::DirtyMoggerLookAndFeel() {
     setColour(juce::PopupMenu::backgroundColourId, kModuleDark);
     setColour(juce::PopupMenu::textColourId, kCrispWhite);
     setColour(juce::PopupMenu::highlightedBackgroundColourId, kPastelTurquoise.withAlpha(0.28f));
@@ -226,7 +226,7 @@ MoggLookAndFeel::MoggLookAndFeel() {
     setColour(juce::TextEditor::textColourId, kCrispWhite);
 }
 
-juce::Slider::SliderLayout MoggLookAndFeel::getSliderLayout(juce::Slider& slider) {
+juce::Slider::SliderLayout DirtyMoggerLookAndFeel::getSliderLayout(juce::Slider& slider) {
     auto layout = LookAndFeel_V4::getSliderLayout(slider);
     const int knobRole = static_cast<int>(slider.getProperties().getWithDefault("knobRole", kRoleStandard));
 
@@ -244,7 +244,7 @@ juce::Slider::SliderLayout MoggLookAndFeel::getSliderLayout(juce::Slider& slider
     return layout;
 }
 
-void MoggLookAndFeel::drawLabel(juce::Graphics& g, juce::Label& label) {
+void DirtyMoggerLookAndFeel::drawLabel(juce::Graphics& g, juce::Label& label) {
     const auto outlineCol = label.findColour(juce::Label::outlineColourId);
     const auto bgCol      = label.findColour(juce::Label::backgroundColourId);
     const auto bounds     = label.getLocalBounds().toFloat().reduced(0.5f);
@@ -274,9 +274,9 @@ void MoggLookAndFeel::drawLabel(juce::Graphics& g, juce::Label& label) {
     }
 }
 
-void MoggLookAndFeel::drawRotarySlider(juce::Graphics& g, int x, int y, int width, int height,
-                                       float sliderPosProportional, float rotaryStartAngle,
-                                       float rotaryEndAngle, juce::Slider& slider) {
+void DirtyMoggerLookAndFeel::drawRotarySlider(juce::Graphics& g, int x, int y, int width, int height,
+                                              float sliderPosProportional, float rotaryStartAngle,
+                                              float rotaryEndAngle, juce::Slider& slider) {
     const auto bounds  = juce::Rectangle<float>(static_cast<float>(x), static_cast<float>(y),
                                                 static_cast<float>(width), static_cast<float>(height)).reduced(3.0f);
     const float radius = std::min(bounds.getWidth(), bounds.getHeight()) * 0.5f;
@@ -353,7 +353,7 @@ void MoggLookAndFeel::drawRotarySlider(juce::Graphics& g, int x, int y, int widt
         }
     }
 
-    // 3. Geriffelter schwarzer Moog-Drehkörper
+    // 3. Geriffelter schwarzer Drehkörper
     const float bodyRadius = radius - (isHero ? 21.0f : (isCenter ? 11.0f : 8.5f));
     if (bodyRadius <= 6.0f) return;
 
@@ -426,10 +426,10 @@ void MoggLookAndFeel::drawRotarySlider(juce::Graphics& g, int x, int y, int widt
                isHero ? 2.4f : 1.6f);
 }
 
-void MoggLookAndFeel::drawButtonBackground(juce::Graphics& g, juce::Button& button,
-                                           const juce::Colour&,
-                                           bool shouldDrawButtonAsHighlighted,
-                                           bool) {
+void DirtyMoggerLookAndFeel::drawButtonBackground(juce::Graphics& g, juce::Button& button,
+                                                  const juce::Colour&,
+                                                  bool shouldDrawButtonAsHighlighted,
+                                                  bool) {
     auto bounds = button.getLocalBounds().toFloat().reduced(1.0f);
     const bool isOn = button.getToggleState();
 
@@ -454,16 +454,16 @@ void MoggLookAndFeel::drawButtonBackground(juce::Graphics& g, juce::Button& butt
     g.fillEllipse(cx - 2.3f, cy - 2.3f, 4.6f, 4.6f);
 }
 
-void MoggLookAndFeel::drawButtonText(juce::Graphics& g, juce::TextButton& button,
-                                     bool, bool) {
+void DirtyMoggerLookAndFeel::drawButtonText(juce::Graphics& g, juce::TextButton& button,
+                                            bool, bool) {
     auto textArea = button.getLocalBounds().withTrimmedBottom(8);
     g.setFont(juce::FontOptions(10.5f, juce::Font::bold));
     g.setColour(button.getToggleState() ? kPureWhite : kSilverMid);
     g.drawText(button.getButtonText(), textArea, juce::Justification::centred, false);
 }
 
-void MoggLookAndFeel::drawToggleButton(juce::Graphics& g, juce::ToggleButton& button,
-                                       bool shouldDrawButtonAsHighlighted, bool) {
+void DirtyMoggerLookAndFeel::drawToggleButton(juce::Graphics& g, juce::ToggleButton& button,
+                                              bool shouldDrawButtonAsHighlighted, bool) {
     auto bounds = button.getLocalBounds().toFloat().reduced(1.0f);
     const bool isOn = button.getToggleState();
     const bool isAirBoost = (button.getComponentID() == "airBoost");
@@ -505,8 +505,8 @@ void MoggLookAndFeel::drawToggleButton(juce::Graphics& g, juce::ToggleButton& bu
     g.drawText(button.getButtonText(), bounds.reduced(2.0f, 0.0f), juce::Justification::centredLeft, false);
 }
 
-void MoggLookAndFeel::drawComboBox(juce::Graphics& g, int width, int height, bool,
-                                   int, int, int, int, juce::ComboBox&) {
+void DirtyMoggerLookAndFeel::drawComboBox(juce::Graphics& g, int width, int height, bool,
+                                          int, int, int, int, juce::ComboBox&) {
     auto bounds = juce::Rectangle<float>(0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height)).reduced(0.5f);
 
     g.setColour(kRecessBlack);
@@ -527,7 +527,7 @@ void MoggLookAndFeel::drawComboBox(juce::Graphics& g, int width, int height, boo
 
 // ==============================================================================
 
-MoggEditorContent::MoggEditorContent(MoggDualLadderAudioProcessor& p)
+DirtyMoggerEditorContent::DirtyMoggerEditorContent(DirtyMoggerAudioProcessor& p)
     : audioProcessor(p)
 {
     // 1. INPUT & OUTPUT (weißer Leuchtring am Knob, TextBox-Breite = 74 px wie Meter-Umrandung)
@@ -621,11 +621,11 @@ MoggEditorContent::MoggEditorContent(MoggDualLadderAudioProcessor& p)
     startTimerHz(30);
 }
 
-MoggEditorContent::~MoggEditorContent() {
+DirtyMoggerEditorContent::~DirtyMoggerEditorContent() {
     stopTimer();
 }
 
-void MoggEditorContent::timerCallback() {
+void DirtyMoggerEditorContent::timerCallback() {
     const float rawInL  = linearToMeterNorm(audioProcessor.consumeInputPeakL());
     const float rawInR  = linearToMeterNorm(audioProcessor.consumeInputPeakR());
     const float rawOutL = linearToMeterNorm(audioProcessor.consumeOutputPeakL());
@@ -648,11 +648,11 @@ void MoggEditorContent::timerCallback() {
     }
 }
 
-void MoggEditorContent::setupRotarySlider(juce::Slider& slider, juce::Label* label,
-                                          const juce::String& text, juce::Colour accent,
-                                          int knobRole,
-                                          juce::Slider::TextEntryBoxPosition textBoxPos,
-                                          int textW, int textH) {
+void DirtyMoggerEditorContent::setupRotarySlider(juce::Slider& slider, juce::Label* label,
+                                                 const juce::String& text, juce::Colour accent,
+                                                 int knobRole,
+                                                 juce::Slider::TextEntryBoxPosition textBoxPos,
+                                                 int textW, int textH) {
     slider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
     slider.setTextBoxStyle(textBoxPos, false, textW, textH);
     slider.setColour(juce::Slider::rotarySliderFillColourId, accent);
@@ -672,7 +672,7 @@ void MoggEditorContent::setupRotarySlider(juce::Slider& slider, juce::Label* lab
     }
 }
 
-void MoggEditorContent::setupSatModeBox(juce::ComboBox& box) {
+void DirtyMoggerEditorContent::setupSatModeBox(juce::ComboBox& box) {
     box.addItem("LADDER", 1);
     box.addItem("WARM",   2);
     box.addItem("FOLD",   3);
@@ -685,11 +685,11 @@ void MoggEditorContent::setupSatModeBox(juce::ComboBox& box) {
     addAndMakeVisible(box);
 }
 
-void MoggEditorContent::paint(juce::Graphics& g) {
+void DirtyMoggerEditorContent::paint(juce::Graphics& g) {
     const float w = static_cast<float>(getWidth());
     const float h = static_cast<float>(getHeight());
 
-    // 1. Matt-schwarze Moog-Frontplatte
+    // 1. Matt-schwarze Frontplatte
     juce::ColourGradient chassisGrad(juce::Colour(0xff14161c), 0.0f, 0.0f,
                                      kChassisBlack,            0.0f, h, false);
     g.setGradientFill(chassisGrad);
@@ -721,10 +721,10 @@ void MoggEditorContent::paint(juce::Graphics& g) {
     drawCornerInbusScrew(g, frame.getX() + 16.0f,     frame.getBottom() - 13.0f);
     drawCornerInbusScrew(g, frame.getRight() - 16.0f, frame.getBottom() - 13.0f);
 
-    // 4. Kopfzeile: "MOGG DUAL LADDER" & "Slope" Beschriftung
+    // 4. Kopfzeile: "DIRTY MOGGER" & "Slope" Beschriftung
     g.setColour(kCrispWhite);
     g.setFont(juce::FontOptions(22.0f, juce::Font::bold));
-    g.drawText("MOGG DUAL LADDER", static_cast<int>(frame.getX() + 40.0f), 16, 260, 28, juce::Justification::left);
+    g.drawText("DIRTY MOGGER", static_cast<int>(frame.getX() + 40.0f), 16, 260, 28, juce::Justification::left);
 
     g.setColour(kSilverLight);
     g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
@@ -828,7 +828,7 @@ void MoggEditorContent::paint(juce::Graphics& g) {
     drawStereoLedMeter(g, outputMeterRect, dispOutL, dispOutR);
 }
 
-void MoggEditorContent::resized() {
+void DirtyMoggerEditorContent::resized() {
     const int cheekW = 20;
     auto frame = getLocalBounds().reduced(cheekW + 8, 8);
 
@@ -970,10 +970,10 @@ void MoggEditorContent::resized() {
 
 // ==============================================================================
 
-MoggDualLadderAudioProcessorEditor::MoggDualLadderAudioProcessorEditor(MoggDualLadderAudioProcessor& p)
+DirtyMoggerAudioProcessorEditor::DirtyMoggerAudioProcessorEditor(DirtyMoggerAudioProcessor& p)
     : AudioProcessorEditor(&p), content(p)
 {
-    setLookAndFeel(&moggLookAndFeel);
+    setLookAndFeel(&dirtyMoggerLookAndFeel);
     addAndMakeVisible(content);
     content.setBounds(0, 0, kBaseWidth, kBaseHeight);
 
@@ -987,11 +987,11 @@ MoggDualLadderAudioProcessorEditor::MoggDualLadderAudioProcessorEditor(MoggDualL
     setSize(kBaseWidth, kBaseHeight);
 }
 
-MoggDualLadderAudioProcessorEditor::~MoggDualLadderAudioProcessorEditor() {
+DirtyMoggerAudioProcessorEditor::~DirtyMoggerAudioProcessorEditor() {
     setLookAndFeel(nullptr);
 }
 
-void MoggDualLadderAudioProcessorEditor::resized() {
+void DirtyMoggerAudioProcessorEditor::resized() {
     const float scaleX = static_cast<float>(getWidth())  / static_cast<float>(kBaseWidth);
     const float scaleY = static_cast<float>(getHeight()) / static_cast<float>(kBaseHeight);
     content.setTransform(juce::AffineTransform::scale(scaleX, scaleY));
