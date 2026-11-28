@@ -18,7 +18,6 @@ MoggDualLadderAudioProcessor::MoggDualLadderAudioProcessor()
     lpSatParam      = apvts.getRawParameterValue("lpSat");
     lpSatModeParam  = apvts.getRawParameterValue("lpSatMode");
     dirtParam       = apvts.getRawParameterValue("dirt");
-    biasParam       = apvts.getRawParameterValue("bias");
     airBoostParam   = apvts.getRawParameterValue("airBoost");
     linkParam       = apvts.getRawParameterValue("link");
     slopeParam      = apvts.getRawParameterValue("slope");
@@ -46,7 +45,6 @@ juce::AudioProcessorValueTreeState::ParameterLayout MoggDualLadderAudioProcessor
     auto resRange    = juce::NormalisableRange<float>(0.0f, 1.0f, 0.001f);
     auto satRange    = juce::NormalisableRange<float>(1.0f, 11.0f, 0.1f);
     auto dirtRange   = juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f);
-    auto biasRange   = juce::NormalisableRange<float>(1.0f, 11.0f, 0.1f);
 
     const juce::StringArray satModes { "Ladder", "Warm", "Fold", "Grit" };
 
@@ -87,10 +85,6 @@ juce::AudioProcessorValueTreeState::ParameterLayout MoggDualLadderAudioProcessor
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID("dirt", 1), "Dirt", dirtRange, 0.0f,
         juce::AudioParameterFloatAttributes().withLabel("%")));
-
-    // Starved Bias: 1.0 = identisch zum bisherigen Sound (Bypass), bis 11.0 = stark abgehackt
-    params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID("bias", 1), "Starved Bias", biasRange, 1.0f));
 
     params.push_back(std::make_unique<juce::AudioParameterBool>(
         juce::ParameterID("airBoost", 1), "Air Shelf Boost", false));
@@ -198,11 +192,6 @@ void MoggDualLadderAudioProcessor::prepareToPlay(double sampleRate, int samplesP
     filterL.reset();
     filterR.reset();
 
-    biasStageL.prepare(oversampledRate, 0x13579bdfu);
-    biasStageR.prepare(oversampledRate, 0x2468ace1u);
-    biasNormSmoothed.reset(oversampledRate, 0.015);
-    biasNormSmoothed.setCurrentAndTargetValue(0.0f);
-
     airShelfGainDb.reset(sampleRate, 0.020);
     airShelfGainDb.setCurrentAndTargetValue(0.0f);
     airShelfL.reset();
@@ -218,8 +207,6 @@ void MoggDualLadderAudioProcessor::prepareToPlay(double sampleRate, int samplesP
 
 void MoggDualLadderAudioProcessor::releaseResources() {
     oversampling.reset();
-    biasStageL.reset();
-    biasStageR.reset();
     airShelfL.reset();
     airShelfR.reset();
 }
@@ -254,7 +241,6 @@ void MoggDualLadderAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer
     const int   lpModeIdx   = std::clamp(static_cast<int>(std::lround(lpSatModeParam->load())), 0, 3);
     const auto  lpSatMode   = static_cast<MoggDualLadderFilter::SatMode>(lpModeIdx);
     const float dirt        = dirtParam->load();
-    const float biasVal     = biasParam->load();
     const int   slopeIndex  = std::clamp(static_cast<int>(std::lround(slopeParam->load())), 0, 3);
     const auto  slope       = static_cast<MoggDualLadderFilter::Slope>(slopeIndex);
 
@@ -286,47 +272,17 @@ void MoggDualLadderAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer
     const size_t numSamples  = osBlock.getNumSamples();
     const size_t numChannels = osBlock.getNumChannels();
 
-    // Bias-Skalierung: 1.0 -> u = 0.0 (100% Bypass), 11.0 -> u = 1.0
-    const float targetBiasU = juce::jlimit(0.0f, 1.0f, (biasVal - 1.0f) / 10.0f);
-    biasNormSmoothed.setTargetValue(targetBiasU);
-
-    const float satNorm  = juce::jlimit(0.0f, 1.0f, ((hpSat - 1.0f) + (lpSat - 1.0f)) / 20.0f);
-    const float dirtNorm = juce::jlimit(0.0f, 1.0f, dirt / 100.0f);
-    const bool biasActive = (targetBiasU > 1.0e-5f) || biasNormSmoothed.isSmoothing();
-
-    float* left  = (numChannels >= 1) ? osBlock.getChannelPointer(0) : nullptr;
-    float* right = (numChannels >= 2) ? osBlock.getChannelPointer(1) : nullptr;
-
-    if (biasActive) {
+    if (numChannels >= 1) {
+        float* left = osBlock.getChannelPointer(0);
         for (size_t i = 0; i < numSamples; ++i) {
-            const float u = biasNormSmoothed.getNextValue();
-
-            if (left != nullptr) {
-                float sL = filterL.processSample(left[i]);
-                if (u > 1.0e-5f) sL = biasStageL.processSample(sL, u, satNorm, dirtNorm);
-                left[i] = sL;
-            }
-
-            if (right != nullptr) {
-                float sR = filterR.processSample(right[i]);
-                if (u > 1.0e-5f) sR = biasStageR.processSample(sR, u, satNorm, dirtNorm);
-                right[i] = sR;
-            }
+            left[i] = filterL.processSample(left[i]);
         }
-    } else {
-        biasStageL.reset();
-        biasStageR.reset();
+    }
 
-        if (left != nullptr) {
-            for (size_t i = 0; i < numSamples; ++i) {
-                left[i] = filterL.processSample(left[i]);
-            }
-        }
-
-        if (right != nullptr) {
-            for (size_t i = 0; i < numSamples; ++i) {
-                right[i] = filterR.processSample(right[i]);
-            }
+    if (numChannels >= 2) {
+        float* right = osBlock.getChannelPointer(1);
+        for (size_t i = 0; i < numSamples; ++i) {
+            right[i] = filterR.processSample(right[i]);
         }
     }
 
@@ -359,7 +315,7 @@ void MoggDualLadderAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer
         airShelfR.reset();
     }
 
-    // Output-Metering
+    // Output-Metering (inkl. optionalem Höhen-Shelf-Boost)
     if (totalNumOutputChannels >= 1 && numBlockSamples > 0) {
         const float peakL = buffer.getMagnitude(0, 0, numBlockSamples);
         storeMaxPeak(outPeakL, peakL);
