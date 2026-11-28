@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <algorithm>
 
-class MoggDualLadderFilter {
+class DirtyMoggerFilter {
 public:
     enum class Slope {
         Slope6 = 0,
