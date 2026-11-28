@@ -22,10 +22,20 @@ jobs:
       - name: Build Plugin
         run: cmake --build build --config Release --parallel
 
+      - name: Package Artifacts & README
+        shell: bash
+        run: |
+          mkdir -p release_package
+          find build -maxdepth 5 -name "*.vst3" -exec cp -R {} release_package/ \;
+          find build -maxdepth 5 -name "*.component" -exec cp -R {} release_package/ \;
+          if [ -f README.md ]; then
+            cp README.md release_package/
+          elif [ -f readme.md ]; then
+            cp readme.md release_package/
+          fi
+
       - name: Upload Compiled Plugin Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: MoggDualLadder-${{ matrix.os }}
-          path: |
-            build/MoggDualLadder_artefacts/Release/VST3
-            build/MoggDualLadder_artefacts/Release/AU
+          name: DirtyMogger-${{ matrix.os }}
+          path: release_package/
