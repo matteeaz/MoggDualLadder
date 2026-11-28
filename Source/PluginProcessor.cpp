@@ -18,6 +18,7 @@ MoggDualLadderAudioProcessor::MoggDualLadderAudioProcessor()
     lpSatParam      = apvts.getRawParameterValue("lpSat");
     lpSatModeParam  = apvts.getRawParameterValue("lpSatMode");
     dirtParam       = apvts.getRawParameterValue("dirt");
+    airBoostParam   = apvts.getRawParameterValue("airBoost");
     linkParam       = apvts.getRawParameterValue("link");
     slopeParam      = apvts.getRawParameterValue("slope");
 
@@ -84,6 +85,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout MoggDualLadderAudioProcessor
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID("dirt", 1), "Dirt", dirtRange, 0.0f,
         juce::AudioParameterFloatAttributes().withLabel("%")));
+
+    params.push_back(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID("airBoost", 1), "Air Shelf Boost", false));
 
     params.push_back(std::make_unique<juce::AudioParameterBool>(
         juce::ParameterID("link", 1), "Link Frequencies", false));
@@ -176,6 +180,8 @@ void MoggDualLadderAudioProcessor::parameterChanged(const juce::String& paramete
 }
 
 void MoggDualLadderAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock) {
+    currentSampleRate = sampleRate;
+
     oversampling.reset();
     oversampling.initProcessing(static_cast<size_t>(samplesPerBlock));
 
@@ -185,6 +191,11 @@ void MoggDualLadderAudioProcessor::prepareToPlay(double sampleRate, int samplesP
     filterR.setSampleRate(oversampledRate);
     filterL.reset();
     filterR.reset();
+
+    airShelfGainDb.reset(sampleRate, 0.020);
+    airShelfGainDb.setCurrentAndTargetValue(0.0f);
+    airShelfL.reset();
+    airShelfR.reset();
 
     inPeakL.store(0.0f, std::memory_order_relaxed);
     inPeakR.store(0.0f, std::memory_order_relaxed);
@@ -196,6 +207,8 @@ void MoggDualLadderAudioProcessor::prepareToPlay(double sampleRate, int samplesP
 
 void MoggDualLadderAudioProcessor::releaseResources() {
     oversampling.reset();
+    airShelfL.reset();
+    airShelfR.reset();
 }
 
 bool MoggDualLadderAudioProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const {
@@ -275,7 +288,34 @@ void MoggDualLadderAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer
 
     oversampling.processSamplesDown(block);
 
-    // Output-Metering
+    // Nach den Filtern: Weicher Höhen-Shelf-Boost (kompensiert den Höhenabfall je nach Slope)
+    constexpr float kSlopeCompensationDb[4] = { 1.5f, 2.8f, 4.8f, 7.2f };
+    const bool airEnabled = airBoostParam->load() > 0.5f;
+    const float targetShelfDb = airEnabled ? kSlopeCompensationDb[slopeIndex] : 0.0f;
+    airShelfGainDb.setTargetValue(targetShelfDb);
+
+    if (airEnabled || airShelfGainDb.isSmoothing()) {
+        if (numBlockSamples > 0) {
+            float* left  = totalNumOutputChannels >= 1 ? buffer.getWritePointer(0) : nullptr;
+            float* right = totalNumOutputChannels >= 2 ? buffer.getWritePointer(1) : nullptr;
+
+            for (int i = 0; i < numBlockSamples; ++i) {
+                if (airShelfGainDb.isSmoothing()) {
+                    const double currentDb = static_cast<double>(airShelfGainDb.getNextValue());
+                    airShelfL.setCoefficients(currentSampleRate, 5800.0, 0.50, currentDb);
+                    airShelfR.setCoefficients(currentSampleRate, 5800.0, 0.50, currentDb);
+                }
+
+                if (left != nullptr)  left[i]  = airShelfL.processSample(left[i]);
+                if (right != nullptr) right[i] = airShelfR.processSample(right[i]);
+            }
+        }
+    } else {
+        airShelfL.reset();
+        airShelfR.reset();
+    }
+
+    // Output-Metering (inkl. optionalem Höhen-Shelf-Boost)
     if (totalNumOutputChannels >= 1 && numBlockSamples > 0) {
         const float peakL = buffer.getMagnitude(0, 0, numBlockSamples);
         storeMaxPeak(outPeakL, peakL);
