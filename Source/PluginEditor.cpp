@@ -16,6 +16,7 @@ namespace {
     const juce::Colour kRecessBlack      { 0xff08090c };
     const juce::Colour kSilverLight      { 0xffe4e9f0 };
     const juce::Colour kSilverMid        { 0xffa7b0bd };
+    const juce::Colour kMediumGray       { 0xff7e8694 };
     const juce::Colour kSilverDark       { 0xff4e5561 };
     const juce::Colour kCrispWhite       { 0xfff7f9fc };
     const juce::Colour kPureWhite        { 0xffffffff };
@@ -36,7 +37,7 @@ namespace {
         auto box = area.toFloat();
         g.setColour(kRecessBlack);
         g.fillRoundedRectangle(box, 4.0f);
-        g.setColour(kSilverDark.withAlpha(0.55f));
+        g.setColour(kMediumGray.withAlpha(0.75f));
         g.drawRoundedRectangle(box, 4.0f, 1.0f);
 
         auto inner = box.reduced(5.0f, 5.0f);
@@ -52,17 +53,18 @@ namespace {
         inner.reduce(0.0f, 2.0f);
 
         // Links: 2 LED-Spalten (L/R), Rechts: dBFS-Skala
-        auto barsArea  = inner.removeFromLeft(28.0f);
+        auto barsArea  = inner.removeFromLeft(24.0f);
         auto scaleArea = inner;
 
-        g.setColour(kSilverMid.withAlpha(0.8f));
+        g.setColour(kSilverMid.withAlpha(0.85f));
         g.setFont(juce::FontOptions(8.0f, juce::Font::bold));
-        g.drawText("L", static_cast<int>(barsArea.getX()), static_cast<int>(chRow.getY()), 12, 11, juce::Justification::centred, false);
-        g.drawText("R", static_cast<int>(barsArea.getX() + 15.0f), static_cast<int>(chRow.getY()), 12, 11, juce::Justification::centred, false);
+        g.drawText("L", static_cast<int>(barsArea.getX()), static_cast<int>(chRow.getY()), 10, 11, juce::Justification::centred, false);
+        g.drawText("R", static_cast<int>(barsArea.getX() + 13.5f), static_cast<int>(chRow.getY()), 10, 11, juce::Justification::centred, false);
 
-        constexpr int numSegs = 12;
-        const float gapY   = 2.8f;
-        const float segH   = (barsArea.getHeight() - gapY * static_cast<float>(numSegs - 1)) / static_cast<float>(numSegs);
+        // 24 feine, dünne LED-Striche (Grau unten -> Reinweiß bei 0 dBFS oben)
+        constexpr int numSegs = 24;
+        const float gapY   = 3.1f;
+        const float segH   = std::max(1.5f, (barsArea.getHeight() - gapY * static_cast<float>(numSegs - 1)) / static_cast<float>(numSegs));
         const float colGap = 3.0f;
         const float segW   = (barsArea.getWidth() - colGap) * 0.5f;
 
@@ -73,7 +75,6 @@ namespace {
             const float activeSegs = levels[ch] * static_cast<float>(numSegs);
 
             for (int i = 0; i < numSegs; ++i) {
-                // Kontinuierlicher Verlauf von Grau (unten) bis Reinweiß bei 0 dBFS (oben)
                 const float t = static_cast<float>(i) / static_cast<float>(numSegs - 1);
                 const juce::Colour segCol = kMeterGrayLow.interpolatedWith(kPureWhite, t);
 
@@ -82,13 +83,13 @@ namespace {
 
                 const bool isLit = (static_cast<float>(i) + 0.35f) <= activeSegs;
                 if (isLit) {
-                    g.setColour(segCol.withAlpha(0.24f));
-                    g.fillRoundedRectangle(segRect.expanded(1.2f), 1.8f);
+                    g.setColour(segCol.withAlpha(0.22f));
+                    g.fillRoundedRectangle(segRect.expanded(0.8f, 0.6f), 1.0f);
                     g.setColour(segCol);
-                    g.fillRoundedRectangle(segRect, 1.4f);
+                    g.fillRoundedRectangle(segRect, 0.9f);
                 } else {
                     g.setColour(segCol.withAlpha(0.11f));
-                    g.fillRoundedRectangle(segRect, 1.4f);
+                    g.fillRoundedRectangle(segRect, 0.9f);
                 }
             }
         }
@@ -107,7 +108,7 @@ namespace {
             { -48.0f, "-48" }
         };
 
-        g.setFont(juce::FontOptions(8.2f, juce::Font::bold));
+        g.setFont(juce::FontOptions(8.0f, juce::Font::bold));
         for (const auto& m : marks) {
             const float t = juce::jlimit(0.0f, 1.0f, (m.db + 48.0f) / 48.0f);
             const float y = barsArea.getBottom() - t * barsArea.getHeight();
@@ -149,6 +150,60 @@ MoggLookAndFeel::MoggLookAndFeel() {
     setColour(juce::PopupMenu::textColourId, kCrispWhite);
     setColour(juce::PopupMenu::highlightedBackgroundColourId, kPastelTurquoise.withAlpha(0.28f));
     setColour(juce::PopupMenu::highlightedTextColourId, kCrispWhite);
+
+    setColour(juce::TextEditor::backgroundColourId, juce::Colours::transparentBlack);
+    setColour(juce::TextEditor::outlineColourId, juce::Colours::transparentBlack);
+    setColour(juce::TextEditor::focusedOutlineColourId, juce::Colours::transparentBlack);
+    setColour(juce::TextEditor::textColourId, kCrispWhite);
+}
+
+juce::Slider::SliderLayout MoggLookAndFeel::getSliderLayout(juce::Slider& slider) {
+    auto layout = LookAndFeel_V4::getSliderLayout(slider);
+    const int knobRole = static_cast<int>(slider.getProperties().getWithDefault("knobRole", kRoleStandard));
+
+    if (knobRole == kRoleHero) {
+        // Frequenzzahl direkt unter den großen Cutoff-Knob setzen
+        const auto local = slider.getLocalBounds();
+        const int boxW = 90;
+        const int boxH = 19;
+        layout.sliderBounds  = local.withTrimmedBottom(26);
+        layout.textBoxBounds = juce::Rectangle<int>((local.getWidth() - boxW) / 2,
+                                                    layout.sliderBounds.getBottom() - 13,
+                                                    boxW,
+                                                    boxH);
+    }
+
+    return layout;
+}
+
+void MoggLookAndFeel::drawLabel(juce::Graphics& g, juce::Label& label) {
+    const auto outlineCol = label.findColour(juce::Label::outlineColourId);
+    const auto bgCol      = label.findColour(juce::Label::backgroundColourId);
+    const auto bounds     = label.getLocalBounds().toFloat().reduced(0.5f);
+    constexpr float cornerRadius = 4.0f;
+
+    if (!bgCol.isTransparent()) {
+        g.setColour(bgCol);
+        g.fillRoundedRectangle(bounds, cornerRadius);
+    }
+
+    if (!label.isBeingEdited()) {
+        const auto alpha = label.isEnabled() ? 1.0f : 0.5f;
+        const auto font  = getLabelFont(label);
+
+        g.setColour(label.findColour(juce::Label::textColourId).withMultipliedAlpha(alpha));
+        g.setFont(font);
+
+        auto textArea = getLabelBorderSize(label).subtractedFrom(label.getLocalBounds());
+        g.drawFittedText(label.getText(), textArea, label.getJustificationType(),
+                         juce::jmax(1, static_cast<int>(static_cast<float>(textArea.getHeight()) / font.getHeight())),
+                         label.getMinimumHorizontalScale());
+    }
+
+    if (!outlineCol.isTransparent()) {
+        g.setColour(outlineCol.withAlpha(label.isEnabled() ? 0.90f : 0.45f));
+        g.drawRoundedRectangle(bounds, cornerRadius, 1.15f);
+    }
 }
 
 void MoggLookAndFeel::drawRotarySlider(juce::Graphics& g, int x, int y, int width, int height,
@@ -316,10 +371,10 @@ void MoggLookAndFeel::drawButtonBackground(juce::Graphics& g, juce::Button& butt
     }
 
     g.setColour(isOn ? juce::Colour(0xff1d2028) : (shouldDrawButtonAsHighlighted ? juce::Colour(0xff191c23) : kRecessBlack));
-    g.fillRoundedRectangle(bounds, 3.5f);
+    g.fillRoundedRectangle(bounds, 4.0f);
 
     g.setColour(isOn ? ledCol.withAlpha(0.85f) : kSilverDark.withAlpha(0.65f));
-    g.drawRoundedRectangle(bounds, 3.5f, isOn ? 1.2f : 0.9f);
+    g.drawRoundedRectangle(bounds, 4.0f, isOn ? 1.2f : 0.9f);
 
     const float cx = bounds.getCentreX();
     const float cy = bounds.getBottom() - 6.0f;
@@ -376,15 +431,15 @@ void MoggLookAndFeel::drawToggleButton(juce::Graphics& g, juce::ToggleButton& bu
 }
 
 void MoggLookAndFeel::drawComboBox(juce::Graphics& g, int width, int height, bool,
-                                   int, int, int, int, juce::ComboBox& box) {
+                                   int, int, int, int, juce::ComboBox&) {
     auto bounds = juce::Rectangle<float>(0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height)).reduced(0.5f);
-    const auto accent = box.findColour(juce::ComboBox::arrowColourId);
 
     g.setColour(kRecessBlack);
-    g.fillRoundedRectangle(bounds, 3.0f);
+    g.fillRoundedRectangle(bounds, 4.0f);
 
-    g.setColour(accent.withAlpha(0.75f));
-    g.drawRoundedRectangle(bounds, 3.0f, 1.0f);
+    // Mittelgrauer, abgerundeter Rahmen passend zu allen Zahlenwerten
+    g.setColour(kMediumGray.withAlpha(0.90f));
+    g.drawRoundedRectangle(bounds, 4.0f, 1.15f);
 
     const float arrowX = static_cast<float>(width) - 11.0f;
     const float arrowY = static_cast<float>(height) * 0.5f;
@@ -392,7 +447,7 @@ void MoggLookAndFeel::drawComboBox(juce::Graphics& g, int width, int height, boo
     arrow.addTriangle(arrowX - 3.0f, arrowY - 1.8f,
                       arrowX + 3.0f, arrowY - 1.8f,
                       arrowX,        arrowY + 2.2f);
-    g.setColour(accent);
+    g.setColour(kSilverLight);
     g.fillPath(arrow);
 }
 
@@ -403,16 +458,16 @@ MoggDualLadderAudioProcessorEditor::MoggDualLadderAudioProcessorEditor(MoggDualL
 {
     setLookAndFeel(&moggLookAndFeel);
 
-    // 1. INPUT & OUTPUT (jeweils 1 Poti + 1 Stereo-Meter mit dBFS-Skala)
+    // 1. INPUT & OUTPUT (jeweils 1 Poti + zentriertes Stereo-Meter mit dBFS-Skala)
     setupRotarySlider(inGainSlider,  &inGainLabel,  "IN LEVEL",  kPastelPink,      kRoleStandard, juce::Slider::TextBoxBelow, 74, 17);
     setupRotarySlider(outGainSlider, &outGainLabel, "OUT LEVEL", kPastelTurquoise, kRoleStandard, juce::Slider::TextBoxBelow, 74, 17);
 
     // 2. HIGHPASS (Hero-Cutoff + HP RES + SATURATION-Gruppe [AMT links neben dem Knob + MODE])
-    setupRotarySlider(hpFreqSlider, nullptr, "", kPastelPink, kRoleHero, juce::Slider::TextBoxBelow, 88, 19);
+    setupRotarySlider(hpFreqSlider, nullptr, "", kPastelPink, kRoleHero, juce::Slider::TextBoxBelow, 90, 19);
     setupRotarySlider(hpResSlider,  &hpResLabel,    "HP RES", kPastelPink, kRoleStandard, juce::Slider::TextBoxBelow, 72, 17);
     setupRotarySlider(hpSatSlider,  &hpSatAmtLabel, "AMT",    kPastelPink, kRoleStandard, juce::Slider::TextBoxRight, 42, 17);
     hpSatAmtLabel.setJustificationType(juce::Justification::centredRight);
-    setupSatModeBox(hpSatModeBox, kPastelPink);
+    setupSatModeBox(hpSatModeBox);
 
     hpSatModeLabel.setText("MODE", juce::dontSendNotification);
     hpSatModeLabel.setJustificationType(juce::Justification::centredLeft);
@@ -424,10 +479,10 @@ MoggDualLadderAudioProcessorEditor::MoggDualLadderAudioProcessorEditor(MoggDualL
     setupRotarySlider(dirtSlider, &dirtLabel, "DIRT", kPastelTurquoise, kRoleCenter, juce::Slider::TextBoxBelow, 76, 18);
 
     // 4. LOWPASS (Hero-Cutoff + SATURATION-Gruppe [AMT links neben dem Knob + MODE] + LP RES)
-    setupRotarySlider(lpFreqSlider, nullptr, "", kPastelTurquoise, kRoleHero, juce::Slider::TextBoxBelow, 88, 19);
+    setupRotarySlider(lpFreqSlider, nullptr, "", kPastelTurquoise, kRoleHero, juce::Slider::TextBoxBelow, 90, 19);
     setupRotarySlider(lpSatSlider,  &lpSatAmtLabel, "AMT",    kPastelTurquoise, kRoleStandard, juce::Slider::TextBoxRight, 42, 17);
     lpSatAmtLabel.setJustificationType(juce::Justification::centredRight);
-    setupSatModeBox(lpSatModeBox, kPastelTurquoise);
+    setupSatModeBox(lpSatModeBox);
     setupRotarySlider(lpResSlider,  &lpResLabel,    "LP RES", kPastelTurquoise, kRoleStandard, juce::Slider::TextBoxBelow, 72, 17);
 
     lpSatModeLabel.setText("MODE", juce::dontSendNotification);
@@ -520,7 +575,7 @@ void MoggDualLadderAudioProcessorEditor::setupRotarySlider(juce::Slider& slider,
     slider.setTextBoxStyle(textBoxPos, false, textW, textH);
     slider.setColour(juce::Slider::rotarySliderFillColourId, accent);
     slider.setColour(juce::Slider::textBoxBackgroundColourId, kRecessBlack);
-    slider.setColour(juce::Slider::textBoxOutlineColourId, accent.withAlpha(0.55f));
+    slider.setColour(juce::Slider::textBoxOutlineColourId, kMediumGray);
     slider.setColour(juce::Slider::textBoxTextColourId, kCrispWhite);
     slider.setColour(juce::Slider::textBoxHighlightColourId, accent.withAlpha(0.35f));
     slider.getProperties().set("knobRole", knobRole);
@@ -535,7 +590,7 @@ void MoggDualLadderAudioProcessorEditor::setupRotarySlider(juce::Slider& slider,
     }
 }
 
-void MoggDualLadderAudioProcessorEditor::setupSatModeBox(juce::ComboBox& box, juce::Colour accent) {
+void MoggDualLadderAudioProcessorEditor::setupSatModeBox(juce::ComboBox& box) {
     box.addItem("LADDER", 1);
     box.addItem("WARM",   2);
     box.addItem("FOLD",   3);
@@ -543,8 +598,8 @@ void MoggDualLadderAudioProcessorEditor::setupSatModeBox(juce::ComboBox& box, ju
     box.setJustificationType(juce::Justification::centred);
     box.setColour(juce::ComboBox::backgroundColourId, kRecessBlack);
     box.setColour(juce::ComboBox::textColourId, kCrispWhite);
-    box.setColour(juce::ComboBox::outlineColourId, accent.withAlpha(0.75f));
-    box.setColour(juce::ComboBox::arrowColourId, accent);
+    box.setColour(juce::ComboBox::outlineColourId, kMediumGray);
+    box.setColour(juce::ComboBox::arrowColourId, kSilverLight);
     addAndMakeVisible(box);
 }
 
@@ -731,28 +786,28 @@ void MoggDualLadderAudioProcessorEditor::resized() {
     const int linkH = 26;
     linkButton.setBounds(modModuleRect.getCentreX() - linkW / 2, topBar.getY() + 5, linkW, linkH);
 
-    // 1. INPUT-Modul: oben 1 Poti (IN LEVEL), unten Stereo-LED-Meter mit dBFS-Skala
+    // 1. INPUT-Modul: oben 1 Poti (IN LEVEL), unten zentriertes Stereo-LED-Meter
     {
-        auto inner = inputModuleRect.reduced(10, 0);
-        inner.removeFromTop(28);
+        auto inner = inputModuleRect.reduced(8, 0);
+        inner.removeFromTop(27);
         inner.removeFromBottom(10);
 
         inGainLabel.setBounds(inner.removeFromTop(16));
-        inGainSlider.setBounds(inner.removeFromTop(96));
-        inner.removeFromTop(8);
-        inputMeterRect = inner.withSizeKeepingCentre(74, inner.getHeight());
+        inGainSlider.setBounds(inner.removeFromTop(94));
+        inner.removeFromTop(6);
+        inputMeterRect = inner.withSizeKeepingCentre(64, inner.getHeight());
     }
 
-    // 2. OUTPUT-Modul: oben Stereo-LED-Meter mit dBFS-Skala, unten 1 Poti (OUT LEVEL)
+    // 2. OUTPUT-Modul: oben zentriertes Stereo-LED-Meter, unten 1 Poti (OUT LEVEL)
     {
-        auto inner = outputModuleRect.reduced(10, 0);
-        inner.removeFromTop(28);
+        auto inner = outputModuleRect.reduced(8, 0);
+        inner.removeFromTop(27);
         inner.removeFromBottom(10);
 
-        outGainSlider.setBounds(inner.removeFromBottom(96));
+        outGainSlider.setBounds(inner.removeFromBottom(94));
         outGainLabel.setBounds(inner.removeFromBottom(16));
-        inner.removeFromBottom(8);
-        outputMeterRect = inner.withSizeKeepingCentre(74, inner.getHeight());
+        inner.removeFromBottom(6);
+        outputMeterRect = inner.withSizeKeepingCentre(64, inner.getHeight());
     }
 
     // 3. MOD-Modul: zentraler DIRT-Regler
@@ -800,7 +855,7 @@ void MoggDualLadderAudioProcessorEditor::resized() {
         layoutSatSubBox(hpSatBoxRect, hpSatSlider, hpSatAmtLabel, hpSatModeLabel, hpSatModeBox);
 
         inner.removeFromBottom(4);
-        hpFreqSlider.setBounds(inner.withSizeKeepingCentre(std::min(inner.getWidth(), 196), inner.getHeight()));
+        hpFreqSlider.setBounds(inner.withSizeKeepingCentre(std::min(inner.getWidth(), 204), inner.getHeight()));
     }
 
     // 5. LOWPASS-Modul: riesiger CUTOFF oben, unten SATURATION-Box (links) + LP RES (rechts)
@@ -820,6 +875,6 @@ void MoggDualLadderAudioProcessorEditor::resized() {
         layoutSatSubBox(lpSatBoxRect, lpSatSlider, lpSatAmtLabel, lpSatModeLabel, lpSatModeBox);
 
         inner.removeFromBottom(4);
-        lpFreqSlider.setBounds(inner.withSizeKeepingCentre(std::min(inner.getWidth(), 196), inner.getHeight()));
+        lpFreqSlider.setBounds(inner.withSizeKeepingCentre(std::min(inner.getWidth(), 204), inner.getHeight()));
     }
 }
