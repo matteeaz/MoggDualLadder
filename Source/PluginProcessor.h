@@ -37,10 +37,20 @@ public:
 
     void parameterChanged(const juce::String& parameterID, float newValue) override;
 
+    float consumeInputPeakL() noexcept  { return inPeakL.exchange(0.0f, std::memory_order_relaxed); }
+    float consumeInputPeakR() noexcept  { return inPeakR.exchange(0.0f, std::memory_order_relaxed); }
+    float consumeOutputPeakL() noexcept { return outPeakL.exchange(0.0f, std::memory_order_relaxed); }
+    float consumeOutputPeakR() noexcept { return outPeakR.exchange(0.0f, std::memory_order_relaxed); }
+
     juce::AudioProcessorValueTreeState apvts;
 
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
+
+    static void storeMaxPeak(std::atomic<float>& target, float peak) noexcept {
+        float current = target.load(std::memory_order_relaxed);
+        while (peak > current && !target.compare_exchange_weak(current, peak, std::memory_order_relaxed)) {}
+    }
 
     MoggDualLadderFilter filterL;
     MoggDualLadderFilter filterR;
@@ -66,6 +76,11 @@ private:
     std::atomic<float> linkedFreqRatio { 0.05f };
     std::atomic<bool> isUpdatingLink { false };
     std::atomic<bool> isRestoringState { false };
+
+    std::atomic<float> inPeakL  { 0.0f };
+    std::atomic<float> inPeakR  { 0.0f };
+    std::atomic<float> outPeakL { 0.0f };
+    std::atomic<float> outPeakR { 0.0f };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MoggDualLadderAudioProcessor)
 };
